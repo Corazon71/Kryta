@@ -1,0 +1,23 @@
+# --- Security ---
+.env
+.env.local
+todo.db
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/dist/
+backend/build/
+*.spec
+
+# --- Node / Frontend ---
+node_modules/
+frontend/dist/
+frontend/dist-electron/
+.DS_Store
+
+# --- Logs ---
+*.log
+npm-debug.log*
