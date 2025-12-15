@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
 from sqlmodel import Session, select
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime, date, time # <--- Add this
 
 # Internal imports
@@ -33,6 +33,7 @@ class PlanRequest(BaseModel):
 class ProofRequest(BaseModel):
     task_id: str
     proof_content: str
+    proof_image: Optional[str] = None # Base64 string
 
 # --- Lifecycle ---
 @app.on_event("startup")
@@ -121,7 +122,8 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
     verification_result = verifier.verify_task(
         task_title=task.title,
         success_criteria=task.success_criteria,
-        user_proof=request.proof_content
+        user_proof=request.proof_content,
+        image_data=request.proof_image  # <--- PASS THE IMAGE HERE
     )
 
     verdict = verification_result.get("verdict", "retry").lower()

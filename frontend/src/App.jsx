@@ -65,6 +65,8 @@ function App() {
   // Inputs
   const [goal, setGoal] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [proofImage, setProofImage] = useState(null);
   
   // Modal / Active Task
   const [activeTask, setActiveTask] = useState(null);
@@ -112,21 +114,25 @@ function App() {
   const openTask = (task) => {
     setActiveTask(task);
     setModalMode('timer');
+    setProofImage(null); // Reset here
     setTimeLeft(task.estimated_time * 60);
     setIsTimerRunning(false);
   };
 
   const handleVerify = async () => {
-    if (!activeTask || !proof) return;
+    if (!activeTask || (!proof && !proofImage)) return; // Allow image OR text
     setLoading(true);
     try {
-      const res = await api.verifyTask(activeTask.id, proof);
+      // Pass proofImage to the API
+      const res = await api.verifyTask(activeTask.id, proof, proofImage);
+      
       setTasks(prev => prev.map(t => t.id === activeTask.id ? { ...t, status: res.task_status } : t));
       if(res.reward) {
         setUser(prev => ({ ...prev, xp: res.reward.total_user_xp, streak: res.reward.current_streak }));
       }
       setActiveTask(null);
       setProof("");
+      setProofImage(null); // Reset image
     } catch (e) { alert("Verification failed"); }
     setLoading(false);
   };
@@ -300,10 +306,55 @@ function App() {
                             onChange={(e) => setProof(e.target.value)}
                             autoFocus
                         />
-                        {/* Placeholder for Image Upload (Next Step) */}
-                        <div className="h-20 border-2 border-dashed border-border rounded-xl flex items-center justify-center text-gray-600 text-sm hover:border-gray-500 cursor-pointer transition-colors">
-                            Drop visual proof here (Coming Soon)
-                        </div>
+                        {/* --- IMAGE UPLOAD AREA --- */}
+<div className="relative group">
+    <input 
+        type="file" 
+        accept="image/*"
+        id="proof-upload"
+        className="hidden" 
+        onChange={(e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // Extract base64 part only
+                    const base64 = reader.result.split(',')[1];
+                    setProofImage(base64); // Need to add this state variable
+                };
+                reader.readAsDataURL(file);
+            }
+        }}
+    />
+    
+    <label 
+        htmlFor="proof-upload" 
+        className={`h-32 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden ${
+            proofImage 
+            ? 'border-primary bg-primary/10' 
+            : 'border-border hover:border-gray-500 hover:bg-white/5'
+        }`}
+    >
+        {proofImage ? (
+            <div className="relative w-full h-full">
+                <img 
+                    src={`data:image/jpeg;base64,${proofImage}`} 
+                    className="w-full h-full object-cover opacity-80" 
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <span className="text-white font-bold bg-black/50 px-3 py-1 rounded-full backdrop-blur-md">Image Loaded</span>
+                </div>
+            </div>
+        ) : (
+            <>
+                <div className="bg-gray-800 p-3 rounded-full mb-2 group-hover:bg-gray-700 transition-colors">
+                    <LayoutGrid size={20} className="text-gray-400" /> 
+                </div>
+                <span className="text-gray-500 text-xs uppercase tracking-widest group-hover:text-gray-300">Upload Visual Evidence</span>
+            </>
+        )}
+    </label>
+</div>
 
                         <div className="flex gap-3 mt-4">
                              <button onClick={() => setModalMode('timer')} className="flex-1 py-3 rounded-xl bg-gray-800">Back</button>

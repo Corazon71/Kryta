@@ -8,10 +8,11 @@ export const api = {
     return res.data;
   },
   
-  verifyTask: async (taskId, proof) => {
+  verifyTask: async (taskId, proof, image = null) => {
     const res = await axios.post(`${API_URL}/verify`, { 
       task_id: taskId, 
-      proof_content: proof 
+      proof_content: proof,
+      proof_image: image // Add this
     });
     return res.data;
   },
