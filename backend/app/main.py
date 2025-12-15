@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime, date, time # <--- Add this
+from datetime import datetime, date, time, timedelta # <--- Add this
 
 # Internal imports
 from .db.database import get_session, init_db
@@ -163,4 +163,100 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
             "total_user_xp": user.xp
         },
         "task": task.model_dump()
+    }
+
+@app.get("/analytics")
+def get_analytics(session: Session = Depends(get_session)):
+    user = session.exec(select(User)).first()
+    if not user:
+        return {}
+    
+    # ... inside get_analytics ...
+
+    # 1. Calculate Date Range (Last 28 Days for Heatmap)
+    today = date.today()
+    heatmap_start = today - timedelta(days=27) # 28 days total
+    
+    # 2. Fetch tasks
+    tasks = session.exec(
+        select(Task)
+        .where(Task.user_id == user.id)
+        .where(Task.created_at >= datetime.combine(heatmap_start, time.min))
+    ).all()
+
+    # 3. Process Heatmap Data (Map Date -> Count)
+    activity_map = {}
+    for t in tasks:
+        if t.status == 'completed':
+            d_str = t.created_at.strftime("%Y-%m-%d")
+            activity_map[d_str] = activity_map.get(d_str, 0) + 1
+
+    # 4. Generate Full List (Fill zeros for missing days)
+    heatmap_data = []
+    for i in range(28):
+        current_date = heatmap_start + timedelta(days=i)
+        d_str = current_date.strftime("%Y-%m-%d")
+        count = activity_map.get(d_str, 0)
+        
+        # Determine intensity level (0-4) for coloring
+        intensity = 0
+        if count > 0: intensity = 1
+        if count > 2: intensity = 2
+        if count > 4: intensity = 3
+        if count > 6: intensity = 4
+
+        heatmap_data.append({
+            "date": d_str,
+            "day_name": current_date.strftime("%a")[0], # M, T, W...
+            "count": count,
+            "intensity": intensity
+        })
+
+    # [Rest of your existing Chart Data Logic for last 7 days goes here...]
+
+    # 1. Calculate Date Range (Last 7 Days)
+    today = date.today()
+    start_date = today - timedelta(days=6)
+    
+    # 2. Fetch all tasks in this range
+    tasks = session.exec(
+        select(Task)
+        .where(Task.user_id == user.id)
+        .where(Task.created_at >= datetime.combine(start_date, time.min))
+    ).all()
+
+    # 3. Aggregate Data for Charts
+    # Format: { "Mon": 50, "Tue": 120, ... }
+    daily_xp = {}
+    
+    # Initialize with 0
+    for i in range(7):
+        day_str = (start_date + timedelta(days=i)).strftime("%a") # Mon, Tue...
+        daily_xp[day_str] = 0
+
+    total_completed = 0
+    total_failed = 0
+
+    for t in tasks:
+        day_str = t.created_at.strftime("%a")
+        if t.status == 'completed':
+            # Simple heuristic: Completed task = 20 XP (approx) 
+            # In a real app, store XP per task in DB. 
+            # For now, we estimate based on count or if you added an xp column to tasks.
+            # Let's assume 1 task = 1 unit of productivity for the chart
+            daily_xp[day_str] += t.estimated_time 
+            total_completed += 1
+        elif t.status == 'retry':
+            total_failed += 1
+
+    chart_data = [{"day": k, "minutes": v} for k, v in daily_xp.items()]
+
+    return {
+        "chart_data": chart_data, # (Your existing 7-day data)
+        "heatmap_data": heatmap_data, # <--- NEW
+        "stats": {
+            "total_completed": total_completed,
+            "total_failed": total_failed,
+            "completion_rate": int((total_completed / (total_completed + total_failed + 1)) * 100)
+        }
     }
