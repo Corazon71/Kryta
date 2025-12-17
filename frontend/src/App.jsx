@@ -138,6 +138,97 @@ const AnalyticsView = () => {
   );
 };
 
+// --- COMPONENT: Settings View ---
+const SettingsView = ({ showToast }) => {
+  const [key, setKey] = useState("");
+  const [status, setStatus] = useState({ configured: false, masked: "Not Configured" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getKeyStatus().then(setStatus).catch(console.error);
+  }, []);
+
+  const handleSave = async () => {
+    if (!key) return;
+    setSaving(true);
+    try {
+      const res = await api.saveKey(key);
+      if (res.status === 'success') {
+        showToast(res.message, "success");
+        setStatus({ configured: true, masked: `${key.slice(0, 4)}...${key.slice(-4)}` });
+        setKey(""); // Clear input for security
+      } else {
+        showToast(res.message, "error");
+      }
+    } catch (e) {
+      showToast("Connection Error", "error");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="w-full max-w-2xl mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+        <Settings className="text-primary" /> System Configuration
+      </h2>
+
+      <div className="bg-surface/50 border border-border p-8 rounded-3xl backdrop-blur-md">
+
+        {/* Status Indicator */}
+        <div className="flex items-center justify-between mb-8 p-4 bg-black/40 rounded-xl border border-white/5">
+          <div>
+            <div className="text-xs text-gray-500 uppercase tracking-widest mb-1">Neural Link Status</div>
+            <div className={`font-mono font-bold ${status.configured ? 'text-green-500' : 'text-red-500'}`}>
+              {status.configured ? "ONLINE" : "OFFLINE"}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-gray-500 uppercase tracking-widest mb-1">Current Key</div>
+            <div className="font-mono text-gray-400 text-sm">
+              {status.masked || "N/A"}
+            </div>
+          </div>
+        </div>
+
+        {/* Input Form */}
+        <div className="space-y-4">
+          <label className="block text-sm text-gray-400 font-mono">GROQ API KEY</label>
+          <div className="relative">
+            <input
+              type="password"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              placeholder="gsk_..."
+              className="w-full bg-black/50 border border-border rounded-xl p-4 pl-12 focus:border-primary outline-none text-white font-mono transition-all focus:ring-1 focus:ring-primary/50"
+            />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+              <Terminal size={18} />
+            </div>
+          </div>
+
+          <p className="text-xs text-gray-600">
+            Your key is stored locally in the encrypted database. DAEMON does not transmit it externally except to Groq.
+          </p>
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+          >
+            {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />}
+            {saving ? "Establishing Link..." : "Save Configuration"}
+          </button>
+        </div>
+      </div>
+
+      {/* Footer Info */}
+      <div className="mt-8 text-center text-gray-600 text-xs font-mono">
+        DAEMON v2.0 // SYSTEM INTEGRITY CHECK: PASS
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN APP COMPONENT ---
 function App() {
   const [view, setView] = useState('home');
@@ -284,7 +375,11 @@ function App() {
       <div className="absolute inset-0 pt-32 pb-32 px-8 overflow-y-auto scrollbar-hide z-10 flex flex-col items-center">
         {view === 'analytics' ? (
           <AnalyticsView />
+        ) : view === 'settings' ? (
+          // --- RENDER SETTINGS HERE ---
+          <SettingsView showToast={showToast} />
         ) : (
+          // --- HOME VIEW (Default) ---
           <>
             {tasks.length === 0 && !loading && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mt-20">
@@ -373,10 +468,10 @@ function App() {
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
             // UPDATED CLASSNAME BELOW:
             className={`absolute top-24 left-1/2 -translate-x-1/2 z-[60] px-6 py-3 rounded-xl border backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] flex items-center gap-3 whitespace-nowrap max-w-[90vw] overflow-hidden text-ellipsis ${toast.type === 'success'
-                ? 'bg-green-900/20 border-green-500/50 text-green-400'
-                : toast.type === 'error'
-                  ? 'bg-red-900/20 border-red-500/50 text-red-400'
-                  : 'bg-primary/20 border-primary/50 text-primary-300'
+              ? 'bg-green-900/20 border-green-500/50 text-green-400'
+              : toast.type === 'error'
+                ? 'bg-red-900/20 border-red-500/50 text-red-400'
+                : 'bg-primary/20 border-primary/50 text-primary-300'
               }`}
           >
             {toast.type === 'success' ? <Trophy size={18} /> : <Terminal size={18} />}

@@ -7,7 +7,7 @@ from datetime import datetime, date, time, timedelta # <--- Add this
 
 # Internal imports
 from .db.database import get_session, init_db
-from .db.models import Task, User
+from .db.models import Task, User, AppSettings
 from .agents.planner import PlannerAgent
 from .agents.verifier import VerifierAgent
 from .agents.motivator import MotivatorAgent
@@ -34,6 +34,8 @@ class ProofRequest(BaseModel):
     task_id: str
     proof_content: str
     proof_image: Optional[str] = None # Base64 string
+class KeyRequest(BaseModel):
+    api_key: str
 
 # --- Lifecycle ---
 @app.on_event("startup")
@@ -260,3 +262,38 @@ def get_analytics(session: Session = Depends(get_session)):
             "completion_rate": int((total_completed / (total_completed + total_failed + 1)) * 100)
         }
     }
+
+
+@app.post("/settings/key")
+def save_api_key(request: KeyRequest, session: Session = Depends(get_session)):
+    # 1. Validate the key works (Simple test)
+    try:
+        from langchain_groq import ChatGroq
+        from langchain_core.messages import HumanMessage
+        
+        # Test connection
+        test_llm = ChatGroq(api_key=request.api_key, model_name="llama3-8b-8192")
+        test_llm.invoke([HumanMessage(content="Hello")])
+    except Exception as e:
+        return {"status": "error", "message": "Invalid API Key. Connection failed."}
+
+    # 2. Save to DB
+    setting = session.get(AppSettings, "groq_api_key")
+    if not setting:
+        setting = AppSettings(key="groq_api_key", value=request.api_key)
+    else:
+        setting.value = request.api_key
+    
+    session.add(setting)
+    session.commit()
+    
+    return {"status": "success", "message": "Neural Link Established."}
+
+@app.get("/settings/key")
+def get_api_key_status(session: Session = Depends(get_session)):
+    setting = session.get(AppSettings, "groq_api_key")
+    # We never return the full key for security, just confirmation
+    if setting and setting.value:
+        masked = f"{setting.value[:4]}...{setting.value[-4:]}"
+        return {"configured": True, "masked": masked}
+    return {"configured": False, "masked": None}

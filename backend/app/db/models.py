@@ -19,3 +19,7 @@ class Task(SQLModel, table=True):
     success_criteria: str
     minimum_viable_done: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class AppSettings(SQLModel, table=True):
+    key: str = Field(primary_key=True) # e.g., "groq_api_key"
+    value: str

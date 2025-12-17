@@ -25,5 +25,15 @@ export const api = {
   getAnalytics: async () => {
     const res = await axios.get(`${API_URL}/analytics`);
     return res.data;
+  },
+
+  saveKey: async (apiKey) => {
+    const res = await axios.post(`${API_URL}/settings/key`, { api_key: apiKey });
+    return res.data;
+  },
+
+  getKeyStatus: async () => {
+    const res = await axios.get(`${API_URL}/settings/key`);
+    return res.data;
   }
 };
