@@ -1,9 +1,12 @@
+import os
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
 from sqlmodel import Session, select
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, date, time, timedelta # <--- Add this
+from langchain_groq import ChatGroq
+from langchain_core.messages import HumanMessage
 
 # Internal imports
 from .db.database import get_session, init_db
@@ -263,37 +266,64 @@ def get_analytics(session: Session = Depends(get_session)):
         }
     }
 
-
 @app.post("/settings/key")
 def save_api_key(request: KeyRequest, session: Session = Depends(get_session)):
-    # 1. Validate the key works (Simple test)
-    try:
-        from langchain_groq import ChatGroq
-        from langchain_core.messages import HumanMessage
-        
-        # Test connection
-        test_llm = ChatGroq(api_key=request.api_key, model_name="llama3-8b-8192")
-        test_llm.invoke([HumanMessage(content="Hello")])
-    except Exception as e:
-        return {"status": "error", "message": "Invalid API Key. Connection failed."}
+    # 0. Basic Format Check
+    if not request.api_key or not request.api_key.startswith("gsk_"):
+        return {"status": "error", "message": "Invalid Key Format (must start with 'gsk_')"}
 
-    # 2. Save to DB
-    setting = session.get(AppSettings, "groq_api_key")
-    if not setting:
-        setting = AppSettings(key="groq_api_key", value=request.api_key)
-    else:
-        setting.value = request.api_key
-    
-    session.add(setting)
-    session.commit()
+    # 1. THE PING CALL (Strict Validation)
+    try:
+        # Use a cheap/fast model to test the key
+        test_llm = ChatGroq(
+            api_key=request.api_key, 
+            model_name="openai/gpt-oss-120b",
+            temperature=0,
+            max_retries=0 # Fail immediately if key is wrong
+        )
+        # Send a tiny packet to see if Groq accepts it
+        test_llm.invoke([HumanMessage(content="ping")])
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Validation Failed: {error_msg}")
+        
+        # User-friendly error mapping
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            return {"status": "error", "message": "Access Denied: Key is invalid."}
+        elif "Connection" in error_msg:
+            return {"status": "error", "message": "Connection Failed: Check internet."}
+        else:
+            return {"status": "error", "message": "Key Validation Failed."}
+
+    # 2. Save to DB (Only runs if Step 1 passes)
+    try:
+        setting = session.get(AppSettings, "groq_api_key")
+        if not setting:
+            setting = AppSettings(key="groq_api_key", value=request.api_key)
+        else:
+            setting.value = request.api_key
+        
+        session.add(setting)
+        session.commit()
+        
+        # Update Runtime
+        os.environ["GROQ_API_KEY"] = request.api_key
+        
+    except Exception as e:
+        print(f"DB Error: {str(e)}")
+        return {"status": "error", "message": "Database write failed."}
     
     return {"status": "success", "message": "Neural Link Established."}
 
 @app.get("/settings/key")
 def get_api_key_status(session: Session = Depends(get_session)):
+    # Check DB ONLY
     setting = session.get(AppSettings, "groq_api_key")
-    # We never return the full key for security, just confirmation
+    
     if setting and setting.value:
         masked = f"{setting.value[:4]}...{setting.value[-4:]}"
-        return {"configured": True, "masked": masked}
-    return {"configured": False, "masked": None}
+        return {"configured": True, "masked": masked, "source": "Database"}
+        
+    # If not in DB, it is OFFLINE. Period.
+    return {"configured": False, "masked": None, "source": None}

@@ -27,9 +27,8 @@ class BaseAgent:
 
     def _get_api_key(self) -> str:
         """
-        Priority:
-        1. Database (User provided setting)
-        2. Environment Variable (.env file)
+        STRICT MODE: Only load from Database.
+        Ignores .env and System Variables.
         """
         try:
             with Session(engine) as session:
@@ -37,9 +36,9 @@ class BaseAgent:
                 if setting and setting.value:
                     return setting.value
         except Exception:
-            pass # DB might not be ready
+            pass 
             
-        return os.getenv("GROQ_API_KEY")
+        return None  # <--- REMOVED os.getenv("GROQ_API_KEY")
 
     def _load_prompt(self, prompt_name: str) -> str:
         import sys
