@@ -33,6 +33,12 @@ class PlanRequest(BaseModel):
     goal: str
     available_time: int
 
+class OnboardingRequest(BaseModel):
+    name: str
+    work_hours: str
+    core_goals: str
+    bad_habits: str
+
 class ProofRequest(BaseModel):
     task_id: str
     proof_content: str
@@ -72,26 +78,55 @@ def get_dashboard(session: Session = Depends(get_session)):
         "tasks": [t.model_dump() for t in tasks]
     }
 
+# --- UPDATED ENDPOINT: PLAN DAY ---
 @app.post("/plan")
 def generate_plan(request: PlanRequest, session: Session = Depends(get_session)):
-    planner = PlannerAgent()
-    result = planner.create_plan(request.goal, request.available_time)
+    # 1. Get User Context
+    user = session.exec(select(User)).first()
     
+    # Convert SQL model to dict for the Agent
+    user_profile = {}
+    if user:
+        user_profile = {
+            "name": user.name,
+            "work_hours": user.work_hours,
+            "core_goals": user.core_goals,
+            "bad_habits": user.bad_habits
+        }
+
+    # 2. Instantiate Agent
+    planner = PlannerAgent()
+    
+    # 3. Pass profile to Agent
+    result = planner.create_plan(
+        user_goal=request.goal, 
+        available_time=request.available_time,
+        user_profile=user_profile # <--- NEW ARGUMENT
+    )
+    
+    # ... (Rest of the saving logic remains the same) ...
     saved_tasks = []
     if "tasks" in result and len(result["tasks"]) > 0:
-        user = session.exec(select(User)).first()
         if not user:
-            user = User(name="AlphaUser")
+            user = User(name="Operator")
             session.add(user)
             session.commit()
             session.refresh(user)
 
+        # Inside generate_plan function loop:
+
         for task_data in result["tasks"]:
             task = Task(
                 user_id=user.id,
-                title=task_data.get("title", "Untitled Task"),
+                title=task_data.get("title", "Untitled"),
                 estimated_time=task_data.get("estimated_time", 10),
-                success_criteria=task_data.get("success_criteria", "Complete the task"),
+                
+                # --- NEW MAPPING ---
+                scheduled_time=task_data.get("scheduled_time", "Pending"),
+                is_urgent=task_data.get("is_urgent", False),
+                # -------------------
+                
+                success_criteria=task_data.get("success_criteria", "Complete it"),
                 minimum_viable_done=task_data.get("minimum_viable_done", "Do it"),
                 status="pending"
             )
@@ -99,9 +134,7 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
             saved_tasks.append(task)
         
         session.commit()
-        
-        for t in saved_tasks:
-            session.refresh(t)
+        for t in saved_tasks: session.refresh(t)
 
         return {
             "status": "success", 
@@ -327,3 +360,22 @@ def get_api_key_status(session: Session = Depends(get_session)):
         
     # If not in DB, it is OFFLINE. Period.
     return {"configured": False, "masked": None, "source": None}
+
+# Add this Input Model
+
+# --- NEW ENDPOINT: SAVE PROFILE ---
+@app.post("/user/onboard")
+def onboard_user(request: OnboardingRequest, session: Session = Depends(get_session)):
+    user = session.exec(select(User)).first()
+    if not user:
+        user = User()
+    
+    # Update fields
+    user.name = request.name
+    user.work_hours = request.work_hours
+    user.core_goals = request.core_goals
+    user.bad_habits = request.bad_habits
+    
+    session.add(user)
+    session.commit()
+    return {"status": "success", "message": "Identity verified. Context loaded."}

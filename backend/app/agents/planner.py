@@ -1,37 +1,44 @@
 # backend/app/agents/planner.py
 from .base import BaseAgent
+from datetime import datetime
 
 class PlannerAgent(BaseAgent):
     def __init__(self):
         super().__init__(role="planner")
 
-    def create_plan(self, user_goal: str, available_time: int) -> dict:
+    # Update the method signature
+    def create_plan(self, user_goal: str, available_time: int, user_profile: dict = None) -> dict:
+        
+        # 1. Get Real-World Context
+        now = datetime.now()
+        current_time = now.strftime("%H:%M") # e.g., "14:30"
+        day_of_week = now.strftime("%A")     # e.g., "Friday"
+        
+        # 2. Build Rich Context
+        profile_context = "User Profile: Unknown"
+        if user_profile:
+            profile_context = f"""
+            USER IDENTITY:
+            - Name: {user_profile.get('name', 'Operator')}
+            - Work Hours: {user_profile.get('work_hours', 'Not specified')} (Strictly block these hours for work tasks only)
+            - Core Goals: {user_profile.get('core_goals', 'Not specified')}
+            - Bad Habits: {user_profile.get('bad_habits', 'None')}
+            """
+
         context = {
+            "current_time": current_time,
+            "current_day": day_of_week,
             "available_minutes": available_time,
+            "user_context": profile_context,
             "rules": [
                 "Max task size: 20 minutes",
                 "Must define minimum_viable_done",
-                "Break down abstract goals into executables"
+                "SCHEDULE INTELLIGENTLY: Check User Work Hours vs Current Time.",
+                "If Current Time is inside Work Hours, and the goal is personal, schedule it AFTER work hours.",
+                "If the day is over, schedule for 'Tomorrow'.",
+                "Output 'scheduled_time' in 24hr format (HH:MM) or 'Tomorrow HH:MM'."
             ]
         }
         
-        # 1. Get raw result from LLM
-        result = self.run(user_goal, context)
-
-        # 2. Normalize Data Structure
-        # Case A: LLM returned a list directly: [{"title":...}, {...}]
-        if isinstance(result, list):
-            return {"tasks": result}
-            
-        # Case B: LLM returned dict but with wrong key (e.g., "plan", "steps")
-        if isinstance(result, dict):
-            if "tasks" in result:
-                return result
-            
-            # Look for any key that holds a list
-            for key, value in result.items():
-                if isinstance(value, list) and len(value) > 0:
-                    return {"tasks": value}
-        
-        # Case C: Total failure or empty
-        return {"tasks": []}
+        # 3. Run Agent
+        return self.run(user_goal, context)

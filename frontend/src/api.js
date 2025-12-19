@@ -3,6 +3,12 @@ import axios from 'axios';
 const API_URL = 'http://127.0.0.1:8000';
 
 export const api = {
+  onboardUser: async (data) => {
+    // data = { name, work_hours, core_goals, bad_habits }
+    const res = await axios.post(`${API_URL}/user/onboard`, data);
+    return res.data;
+  },
+  
   planDay: async (goal, time) => {
     const res = await axios.post(`${API_URL}/plan`, { goal, available_time: time });
     return res.data;
