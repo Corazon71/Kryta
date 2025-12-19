@@ -83,8 +83,6 @@ def get_dashboard(session: Session = Depends(get_session)):
 def generate_plan(request: PlanRequest, session: Session = Depends(get_session)):
     # 1. Get User Context
     user = session.exec(select(User)).first()
-    
-    # Convert SQL model to dict for the Agent
     user_profile = {}
     if user:
         user_profile = {
@@ -94,17 +92,34 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
             "bad_habits": user.bad_habits
         }
 
+    # --- NEW: GET EXISTING SCHEDULE ---
+    today_start = datetime.combine(date.today(), time.min)
+    existing_tasks = session.exec(
+        select(Task)
+        .where(Task.user_id == user.id)
+        .where(Task.created_at >= today_start)
+        .where(Task.status != 'completed') # Only care about pending tasks
+    ).all()
+    
+    # Format: "14:00 (30m), 16:30 (15m)"
+    blocked_slots = ", ".join(
+        [f"{t.scheduled_time} ({t.estimated_time}m)" for t in existing_tasks if t.scheduled_time]
+    )
+    if not blocked_slots:
+        blocked_slots = "None. Calendar is clear."
+    # ----------------------------------
+
     # 2. Instantiate Agent
     planner = PlannerAgent()
     
-    # 3. Pass profile to Agent
+    # 3. Pass profile AND blocked_slots to Agent
     result = planner.create_plan(
         user_goal=request.goal, 
         available_time=request.available_time,
-        user_profile=user_profile # <--- NEW ARGUMENT
+        user_profile=user_profile,
+        existing_schedule=blocked_slots # <--- PASS THIS NEW ARG
     )
     
-    # ... (Rest of the saving logic remains the same) ...
     saved_tasks = []
     if "tasks" in result and len(result["tasks"]) > 0:
         if not user:

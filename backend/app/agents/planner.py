@@ -7,22 +7,20 @@ class PlannerAgent(BaseAgent):
         super().__init__(role="planner")
 
     # Update the method signature
-    def create_plan(self, user_goal: str, available_time: int, user_profile: dict = None) -> dict:
+    def create_plan(self, user_goal: str, available_time: int, user_profile: dict = None, existing_schedule: str = "None") -> dict:
         
         # 1. Get Real-World Context
         now = datetime.now()
-        current_time = now.strftime("%H:%M") # e.g., "14:30"
-        day_of_week = now.strftime("%A")     # e.g., "Friday"
+        current_time = now.strftime("%H:%M")
+        day_of_week = now.strftime("%A")
         
-        # 2. Build Rich Context
+        # 2. Build Rich Context (Updated with Schedule)
         profile_context = "User Profile: Unknown"
         if user_profile:
             profile_context = f"""
             USER IDENTITY:
             - Name: {user_profile.get('name', 'Operator')}
-            - Work Hours: {user_profile.get('work_hours', 'Not specified')} (Strictly block these hours for work tasks only)
-            - Core Goals: {user_profile.get('core_goals', 'Not specified')}
-            - Bad Habits: {user_profile.get('bad_habits', 'None')}
+            - Work Hours: {user_profile.get('work_hours', 'Not specified')}
             """
 
         context = {
@@ -30,15 +28,15 @@ class PlannerAgent(BaseAgent):
             "current_day": day_of_week,
             "available_minutes": available_time,
             "user_context": profile_context,
+            "existing_schedule": existing_schedule, # <--- INJECT SCHEDULE
             "rules": [
                 "Max task size: 20 minutes",
                 "Must define minimum_viable_done",
-                "SCHEDULE INTELLIGENTLY: Check User Work Hours vs Current Time.",
-                "If Current Time is inside Work Hours, and the goal is personal, schedule it AFTER work hours.",
-                "If the day is over, schedule for 'Tomorrow'.",
-                "Output 'scheduled_time' in 24hr format (HH:MM) or 'Tomorrow HH:MM'."
+                "CRITICAL: Avoid double-booking.",
+                f"The User already has tasks scheduled at: {existing_schedule}",
+                "Find the next available time slot that fits the user's constraints.",
+                "Output 'scheduled_time' in 24hr format (HH:MM)."
             ]
         }
         
-        # 3. Run Agent
         return self.run(user_goal, context)

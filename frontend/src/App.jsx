@@ -1,122 +1,218 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from './api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Flame, Target, CheckCircle, Loader2,
-  Play, Pause, X, Terminal, Clock, LayoutGrid, BarChart3, Settings, AlertTriangle
+  Play, Pause, X, Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// --- UTILITY: Time Formatter ---
-const useTime = () => {
-  const [time, setTime] = useState(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return time;
+// --- CSS FOR SCROLLBAR HIDING & MASKS ---
+const globalStyles = `
+  .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+  }
+  .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+  }
+  .timeline-mask {
+      mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  }
+`;
+
+// --- HELPERS ---
+const timeToMinutes = (timeStr) => {
+  if (!timeStr || timeStr.includes("Tomorrow") || timeStr === "Pending") return -1;
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
 };
 
-// --- COMPONENT: Onboarding (Identity Verification) ---
-const OnboardingModal = ({ onComplete }) => {
-  const [formData, setFormData] = useState({
-    name: "",
-    work_hours: "",
-    core_goals: "",
-    bad_habits: ""
+const getCurrentMinutes = () => {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+};
+
+// --- COMPONENT: Modern Timeline (The Rewrite) ---
+const TimelineView = ({ tasks, openTask }) => {
+  const [nowMinutes, setNowMinutes] = useState(getCurrentMinutes());
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNowMinutes(getCurrentMinutes()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll to "Now" and center it
+  useEffect(() => {
+    if (scrollRef.current) {
+      const pxPerMin = 4; // Wider spacing for cleaner look
+      const scrollPos = (nowMinutes * pxPerMin) - (window.innerWidth / 2);
+      scrollRef.current.scrollLeft = scrollPos;
+    }
+  }, [scrollRef]);
+
+  const activeDirective = tasks.find(t => {
+    const start = timeToMinutes(t.scheduled_time);
+    if (start === -1) return false;
+    const end = start + t.estimated_time;
+    return t.status !== 'completed' && nowMinutes >= (start - 15) && nowMinutes <= end;
   });
+
+  const pxPerMin = 4; // Scale factor
+
+  return (
+    <div className="w-full flex flex-col items-center justify-end h-full pb-[30vh] relative">
+      <style>{globalStyles}</style>
+
+      {/* --- LAYER A: ACTIVE TASK POP-UP --- */}
+      <div className="mb-6 w-full max-w-xl px-6 h-40 flex items-end justify-center z-20">
+        <AnimatePresence mode="wait">
+          {activeDirective ? (
+            <motion.div
+              key={activeDirective.id}
+              initial={{ y: 100, opacity: 0, scale: 0.9 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.9 }}
+              onClick={() => openTask(activeDirective)}
+              className="w-full bg-surface/90 backdrop-blur-xl border border-primary/50 p-6 rounded-3xl shadow-[0_0_50px_rgba(124,58,237,0.4)] cursor-pointer hover:bg-surface group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-transparent opacity-50" />
+              <div className="relative z-10 flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-2 text-primary font-mono text-[10px] uppercase tracking-widest mb-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span>
+                    Current Directive
+                  </div>
+                  <h2 className="text-2xl font-bold text-white tracking-tight">{activeDirective.title}</h2>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-mono text-white font-bold">{activeDirective.scheduled_time}</div>
+                  <div className="text-[10px] text-gray-400 font-mono tracking-widest">{activeDirective.estimated_time} MIN</div>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="text-center pb-4"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 tracking-tight">TIMELINE SYNCED</h2>
+              <p className="text-gray-800 font-mono text-[10px] uppercase tracking-widest mt-1">No Immediate Directives</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* --- LAYER B: THE FADING TIMELINE --- */}
+      <div
+        ref={scrollRef}
+        className="w-full overflow-x-auto scrollbar-hide relative h-32 select-none timeline-mask"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {/* The Track (24h * 60m * 4px) */}
+        <div className="relative h-full min-w-[5760px] flex items-center">
+
+          {/* 1. The Main Axis Line (Thicker, darker) */}
+          <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/10 w-full" />
+
+          {/* 2. Hour Dots & Labels */}
+          {[...Array(25)].map((_, i) => (
+            <div key={i} className="absolute top-1/2" style={{ left: `${i * 60 * pxPerMin}px` }}>
+              {/* The Dot */}
+              <div className="w-1.5 h-1.5 bg-gray-600 rounded-full -mt-[3px] -ml-[3px]" />
+              {/* The Label */}
+              <div className="absolute top-4 -left-3 text-[10px] font-mono text-gray-600 font-bold">
+                {i.toString().padStart(2, '0')}:00
+              </div>
+            </div>
+          ))}
+
+          {/* 3. Task Pills (Floating Above) */}
+          {tasks.map(task => {
+            const start = timeToMinutes(task.scheduled_time);
+            if (start === -1 || task.status === 'completed') return null;
+
+            const width = Math.max(task.estimated_time * pxPerMin, 20);
+            const isUrgent = task.is_urgent;
+
+            return (
+              <motion.div
+                key={task.id}
+                onClick={() => openTask(task)}
+                whileHover={{ y: -2, scale: 1.05 }}
+                className={`absolute top-[35%] h-3 rounded-full cursor-pointer z-10 shadow-lg backdrop-blur-sm transition-all ${isUrgent
+                  ? 'bg-red-500 shadow-[0_0_15px_red]'
+                  : 'bg-primary shadow-[0_0_15px_#7c3aed]'
+                  }`}
+                style={{ left: `${start * pxPerMin}px`, width: `${width}px` }}
+              >
+                {/* Tooltip Label (Visible on Hover) */}
+                <div className="absolute -top-8 left-0 text-[10px] font-bold text-white bg-black/80 px-2 py-1 rounded whitespace-nowrap opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
+                  {task.title}
+                </div>
+              </motion.div>
+            );
+          })}
+
+          {/* 4. The Playhead (Glowing Red Circle + Beam) */}
+          <div
+            className="absolute top-0 bottom-0 z-30 pointer-events-none transition-all duration-1000 ease-linear"
+            style={{ left: `${nowMinutes * pxPerMin}px` }}
+          >
+            {/* The Beam */}
+            <div className="absolute top-4 bottom-4 w-[1px] bg-gradient-to-b from-transparent via-red-500 to-transparent opacity-50" />
+
+            {/* The Glowing Circle on the Axis */}
+            <div className="absolute top-1/2 -mt-1.5 -ml-1.5 w-3 h-3 bg-red-500 rounded-full shadow-[0_0_20px_red,0_0_40px_red]">
+              <div className="absolute inset-0 bg-white rounded-full opacity-20 animate-ping" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: Onboarding ---
+const OnboardingModal = ({ onComplete }) => {
+  const [formData, setFormData] = useState({ name: "", work_hours: "", core_goals: "", bad_habits: "" });
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setSubmitting(true);
-    try {
-      await api.onboardUser(formData);
-      setTimeout(() => {
-        onComplete();
-      }, 1500);
-    } catch (e) {
-      alert("Registration Failed. Backend offline?");
-      setSubmitting(false);
-    }
+    try { await api.onboardUser(formData); setTimeout(onComplete, 1500); }
+    catch (e) { alert("Error"); setSubmitting(false); }
   };
 
   const steps = [
     { label: "IDENTITY", field: "name", question: "Identify yourself, Operator.", placeholder: "e.g. Sid" },
     { label: "PARAMETERS", field: "work_hours", question: "Define operational window.", placeholder: "e.g. 9:00 AM - 6:00 PM" },
-    { label: "OBJECTIVE", field: "core_goals", question: "State primary directive.", placeholder: "e.g. Learn AI, Get Fit" },
+    { label: "OBJECTIVE", field: "core_goals", question: "State primary directive.", placeholder: "e.g. Learn AI" },
     { label: "THREATS", field: "bad_habits", question: "List known vulnerabilities.", placeholder: "e.g. Doomscrolling" }
   ];
 
   return (
     <div className="absolute inset-0 z-[100] flex items-center justify-center p-8 backdrop-blur-xl bg-black/80">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-xl bg-surface border border-primary/30 p-12 relative shadow-[0_0_100px_rgba(124,58,237,0.2)]"
-      >
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full max-w-xl bg-surface border border-primary/30 p-12 relative shadow-[0_0_100px_rgba(124,58,237,0.2)]">
         <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-primary"></div>
         <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-primary"></div>
         <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-primary"></div>
         <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-primary"></div>
-
-        {submitting ? (
-          <div className="text-center py-10">
-            <Loader2 className="animate-spin w-16 h-16 text-primary mx-auto mb-6" />
-            <h2 className="text-2xl font-mono text-white tracking-widest animate-pulse">ESTABLISHING PROFILE...</h2>
-          </div>
-        ) : (
+        {submitting ? <div className="text-center py-10"><Loader2 className="animate-spin w-12 h-12 text-primary mx-auto mb-4" /><h2 className="text-xl font-mono text-white animate-pulse">ESTABLISHING PROFILE...</h2></div> : (
           <>
-            <div className="mb-10">
-              <span className="text-primary font-mono text-xs tracking-[0.3em] uppercase block mb-2">Sequence {step + 1}/{steps.length}</span>
-              <h1 className="text-4xl font-bold text-white mb-2">{steps[step].question}</h1>
-            </div>
-            <input
-              autoFocus
-              type="text"
-              className="w-full bg-transparent border-b-2 border-gray-700 text-3xl py-4 text-white placeholder-gray-800 outline-none focus:border-primary font-mono transition-colors"
-              placeholder={steps[step].placeholder}
-              value={formData[steps[step].field]}
-              onChange={(e) => setFormData({ ...formData, [steps[step].field]: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && formData[steps[step].field]) {
-                  if (step < steps.length - 1) setStep(step + 1);
-                  else handleSubmit();
-                }
-              }}
-            />
-            <div className="flex justify-between mt-12 items-end">
-              <div className="flex gap-2">
-                {steps.map((_, i) => (
-                  <div key={i} className={`h-1 w-8 ${i <= step ? 'bg-primary' : 'bg-gray-800'}`} />
-                ))}
-              </div>
-              <button
-                onClick={() => { if (step < steps.length - 1) setStep(step + 1); else handleSubmit(); }}
-                disabled={!formData[steps[step].field]}
-                className="bg-white text-black font-bold py-3 px-8 hover:bg-gray-200 transition-colors disabled:opacity-50 font-mono uppercase"
-              >
-                {step === steps.length - 1 ? "Initialize" : "Next >>"}
-              </button>
-            </div>
+            <div className="mb-8"><span className="text-primary font-mono text-xs uppercase block mb-2">Sequence {step + 1}/{steps.length}</span><h1 className="text-3xl font-bold text-white">{steps[step].question}</h1></div>
+            <input autoFocus type="text" className="w-full bg-transparent border-b-2 border-gray-700 text-2xl py-2 text-white outline-none focus:border-primary font-mono" placeholder={steps[step].placeholder} value={formData[steps[step].field]} onChange={(e) => setFormData({ ...formData, [steps[step].field]: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && formData[steps[step].field]) { step < steps.length - 1 ? setStep(step + 1) : handleSubmit() } }} />
+            <button onClick={() => { step < steps.length - 1 ? setStep(step + 1) : handleSubmit() }} disabled={!formData[steps[step].field]} className="mt-8 bg-white text-black font-bold py-2 px-6 font-mono uppercase disabled:opacity-50">Next &gt;&gt;</button>
           </>
         )}
       </motion.div>
-    </div>
-  );
-};
-
-// --- COMPONENT: Premium Clock ---
-const DaemonClock = () => {
-  const time = useTime();
-  return (
-    <div className="text-right">
-      <div className="text-4xl font-mono font-bold tracking-tighter text-white">
-        {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </div>
-      <div className="text-xs text-gray-500 font-mono tracking-widest uppercase mt-1">
-        {time.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
-      </div>
     </div>
   );
 };
@@ -127,18 +223,8 @@ const StatusCorner = ({ user }) => {
   const progress = user.xp % 100;
   return (
     <div className="flex gap-4 items-center">
-      <div className="w-12 h-12 bg-primary/20 rounded-lg border border-primary/50 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.3)]">
-        <Terminal size={20} className="text-primary" />
-      </div>
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-xs font-bold text-gray-400 tracking-wider">OPERATOR Lvl.{level}</span>
-          <span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded border border-primary/20">{user.streak} DAY STREAK</span>
-        </div>
-        <div className="w-32 h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div className="h-full bg-primary shadow-[0_0_10px_#7c3aed]" style={{ width: `${progress}%` }} />
-        </div>
-      </div>
+      <div className="w-12 h-12 bg-primary/20 rounded-lg border border-primary/50 flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.3)]"><Terminal size={20} className="text-primary" /></div>
+      <div><div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold text-gray-400 tracking-wider">OPERATOR Lvl.{level}</span><span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded border border-primary/20">{user.streak} DAY STREAK</span></div><div className="w-32 h-1.5 bg-gray-800 rounded-full overflow-hidden"><div className="h-full bg-primary shadow-[0_0_10px_#7c3aed]" style={{ width: `${progress}%` }} /></div></div>
     </div>
   );
 };
@@ -148,54 +234,20 @@ const SettingsView = ({ showToast, setIsConfigured }) => {
   const [key, setKey] = useState("");
   const [status, setStatus] = useState({ configured: false, masked: "Checking..." });
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.getKeyStatus().then(setStatus).catch(console.error);
-  }, []);
-
+  useEffect(() => { api.getKeyStatus().then(setStatus).catch(console.error); }, []);
   const handleSave = async () => {
-    if (!key) return;
-    setSaving(true);
-    try {
-      const res = await api.saveKey(key);
-      if (res.status === 'success') {
-        showToast(res.message, "success");
-        setStatus({ configured: true, masked: `${key.slice(0, 4)}...${key.slice(-4)}` });
-        setIsConfigured(true);
-        setKey("");
-      } else {
-        showToast(res.message, "error");
-      }
-    } catch (e) {
-      showToast("Connection Error", "error");
-    }
+    if (!key) return; setSaving(true);
+    try { const res = await api.saveKey(key); if (res.status === 'success') { showToast(res.message, "success"); setStatus({ configured: true, masked: "********" }); setIsConfigured(true); setKey(""); } else { showToast(res.message, "error"); } } catch (e) { showToast("Connection Error", "error"); }
     setSaving(false);
   };
-
   return (
     <div className="w-full max-w-2xl mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <h2 className="text-2xl font-bold mb-6 flex items-center gap-2"><Settings className="text-primary" /> System Configuration</h2>
       <div className="bg-surface/50 border border-border p-8 rounded-3xl backdrop-blur-md">
         <div className="flex items-center justify-between mb-8 p-4 bg-black/40 rounded-xl border border-white/5">
-          <div>
-            <div className="text-xs text-gray-500 uppercase tracking-widest mb-1">Neural Link Status</div>
-            <div className={`font-mono font-bold ${status.configured ? 'text-green-500' : 'text-red-500'}`}>{status.configured ? "ONLINE" : "OFFLINE"}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-gray-500 uppercase tracking-widest mb-1">Current Key</div>
-            <div className="font-mono text-gray-400 text-sm">{status.masked || "N/A"}</div>
-          </div>
+          <div><div className="text-xs text-gray-500 uppercase tracking-widest mb-1">Neural Link Status</div><div className={`font-mono font-bold ${status.configured ? 'text-green-500' : 'text-red-500'}`}>{status.configured ? "ONLINE" : "OFFLINE"}</div></div>
         </div>
-        <div className="space-y-4">
-          <label className="block text-sm text-gray-400 font-mono">GROQ API KEY</label>
-          <div className="relative">
-            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="gsk_..." className="w-full bg-black/50 border border-border rounded-xl p-4 pl-12 focus:border-primary outline-none text-white font-mono transition-all focus:ring-1 focus:ring-primary/50" />
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Terminal size={18} /></div>
-          </div>
-          <button onClick={handleSave} disabled={saving} className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-            {saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />} {saving ? "Establishing Link..." : "Save Configuration"}
-          </button>
-        </div>
+        <div className="space-y-4"><label className="block text-sm text-gray-400 font-mono">GROQ API KEY</label><input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="gsk_..." className="w-full bg-black/50 border border-border rounded-xl p-4 pl-12 focus:border-primary outline-none text-white font-mono transition-all focus:ring-1 focus:ring-primary/50" /><div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"><Terminal size={18} /></div><button onClick={handleSave} disabled={saving} className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">{saving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />} {saving ? "Establishing Link..." : "Save Configuration"}</button></div>
       </div>
     </div>
   );
@@ -206,31 +258,17 @@ const AnalyticsView = () => {
   const [data, setData] = useState(null);
   useEffect(() => { api.getAnalytics().then(setData).catch(console.error); }, []);
   if (!data) return <div className="text-gray-500 mt-20 flex items-center gap-2"><Loader2 className="animate-spin" /> Accessing Data Logs...</div>;
-
   return (
     <div className="w-full max-w-4xl mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md">
-          <div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Success Rate</div>
-          <div className="text-3xl font-bold text-white">{data.stats.completion_rate}%</div>
-        </div>
-        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md">
-          <div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Missions Done</div>
-          <div className="text-3xl font-bold text-accent">{data.stats.total_completed}</div>
-        </div>
-        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md">
-          <div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Failed</div>
-          <div className="text-3xl font-bold text-red-500">{data.stats.total_failed}</div>
-        </div>
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md"><div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Success Rate</div><div className="text-3xl font-bold text-white">{data.stats.completion_rate}%</div></div>
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md"><div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Missions Done</div><div className="text-3xl font-bold text-accent">{data.stats.total_completed}</div></div>
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md"><div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Failed</div><div className="text-3xl font-bold text-red-500">{data.stats.total_failed}</div></div>
       </div>
       <div className="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-md mb-6 flex flex-col items-center">
         <div className="w-full flex justify-between items-end mb-6 px-4">
           <h3 className="text-gray-400 text-sm font-mono uppercase tracking-widest">Consistency (28 Days)</h3>
-          <div className="flex items-center gap-2 text-[10px] text-gray-600 font-mono">
-            <span>LESS</span>
-            <div className="w-2 h-2 bg-white/5 rounded-full"></div><div className="w-2 h-2 bg-primary/40 rounded-full"></div><div className="w-2 h-2 bg-primary rounded-full"></div><div className="w-2 h-2 bg-white rounded-full shadow-[0_0_5px_white]"></div>
-            <span>MORE</span>
-          </div>
+          <div className="flex items-center gap-2 text-[10px] text-gray-600 font-mono"><span>LESS</span><div className="w-2 h-2 bg-white/5 rounded-full"></div><div className="w-2 h-2 bg-primary/40 rounded-full"></div><div className="w-2 h-2 bg-primary rounded-full"></div><div className="w-2 h-2 bg-white rounded-full shadow-[0_0_5px_white]"></div><span>MORE</span></div>
         </div>
         <div className="grid grid-cols-7 gap-3">
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (<div key={i} className="text-center text-[10px] text-gray-600 font-mono h-4">{d}</div>))}
@@ -242,19 +280,7 @@ const AnalyticsView = () => {
           ))}
         </div>
       </div>
-      <div className="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-md h-72 relative">
-        <h3 className="text-gray-400 text-sm mb-6 font-mono uppercase tracking-widest">Output Velocity</h3>
-        <ResponsiveContainer width="100%" height="85%">
-          <AreaChart data={data.chart_data}>
-            <defs><linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} /><stop offset="95%" stopColor="#7c3aed" stopOpacity={0} /></linearGradient></defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-            <XAxis dataKey="day" stroke="#4b5563" tick={{ fill: '#6b7280', fontSize: 12 }} tickLine={false} axisLine={false} />
-            <YAxis hide />
-            <Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} />
-            <Area type="monotone" dataKey="minutes" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorFocus)" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
+      <div className="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-md h-72 relative"><ResponsiveContainer width="100%" height="100%"><AreaChart data={data.chart_data}><defs><linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} /><stop offset="95%" stopColor="#7c3aed" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} /><XAxis dataKey="day" stroke="#4b5563" tick={{ fill: '#6b7280', fontSize: 12 }} tickLine={false} axisLine={false} /><YAxis hide /><Tooltip contentStyle={{ backgroundColor: '#09090b', borderColor: '#333', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} /><Area type="monotone" dataKey="minutes" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorFocus)" /></AreaChart></ResponsiveContainer></div>
     </div>
   );
 };
@@ -265,7 +291,7 @@ function App() {
   const [user, setUser] = useState({ xp: 0, streak: 0 });
   const [tasks, setTasks] = useState([]);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [isOnboarded, setIsOnboarded] = useState(false); // <--- NEW IDENTITY STATE
+  const [isOnboarded, setIsOnboarded] = useState(false);
 
   const [goal, setGoal] = useState("");
   const [loading, setLoading] = useState(false);
@@ -288,13 +314,9 @@ function App() {
         const data = await api.getDashboard();
         if (data.user) {
           setUser(data.user);
-          // Check if user has a name (Onboarded?)
-          if (data.user.name && data.user.name !== "Operator" && data.user.name !== "AlphaUser") {
-            setIsOnboarded(true);
-          }
+          if (data.user.name && data.user.name !== "Operator" && data.user.name !== "AlphaUser") setIsOnboarded(true);
         }
         if (data.tasks) setTasks(data.tasks);
-
         const keyStatus = await api.getKeyStatus();
         setIsConfigured(keyStatus.configured);
       } catch (e) { console.error(e); }
@@ -361,12 +383,10 @@ function App() {
       {!isOnboarded ? (
         <OnboardingModal onComplete={() => { setIsOnboarded(true); showToast("Identity Verified. Welcome, Operator.", "success"); }} />
       ) : (
-        /* --- MAIN APP UI --- */
         <>
           {/* Top HUD */}
           <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-20">
             <StatusCorner user={user} />
-            <DaemonClock />
           </div>
 
           {/* Bottom HUD */}
@@ -390,53 +410,19 @@ function App() {
           </div>
 
           {/* Main Content */}
-          <div className="absolute inset-0 pt-32 pb-32 px-8 overflow-y-auto scrollbar-hide z-10 flex flex-col items-center">
-            {view === 'analytics' ? (<AnalyticsView />) : view === 'settings' ? (<SettingsView showToast={showToast} setIsConfigured={setIsConfigured} />) : (
+          <div className="absolute inset-0 pt-0 pb-0 overflow-hidden z-10">
+            {view === 'analytics' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><AnalyticsView /></div>) : view === 'settings' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><SettingsView showToast={showToast} setIsConfigured={setIsConfigured} /></div>) : (
               <>
-                {tasks.length === 0 && !loading && (
-                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mt-20">
-                    <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">{isConfigured ? "Good Morning, Operator." : <span className="text-gray-500">SYSTEM OFFLINE.</span>}</h1>
-                    <p className="text-gray-500 text-lg max-w-md mx-auto">{isConfigured ? "The system is online. Input your primary objective below to initiate the protocol." : "Configuration required. Please access Settings to establish Neural Link."}</p>
-                  </motion.div>
-                )}
-                <div className="w-full max-w-3xl space-y-3">
-                  {tasks.map((task, i) => (
-                    <motion.div key={task.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} onClick={() => task.status !== 'completed' && openTask(task)} className={`group relative p-4 rounded-xl border backdrop-blur-sm transition-all cursor-pointer overflow-hidden ${task.status === 'completed' ? 'bg-green-900/10 border-green-900/30 opacity-50' : 'bg-glass border-border hover:border-primary/50 hover:bg-white/5'}`}>
-                      {/* ... inside tasks.map ... */}
-                      <div className="flex items-center justify-between relative z-10">
-                        <div className="flex items-center gap-4">
-                          {/* Checkbox Icon */}
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${task.status === 'completed' ? 'bg-green-500 border-green-500' : 'border-gray-600 group-hover:border-primary'
-                            }`}>
-                            {task.status === 'completed' && <CheckCircle size={14} className="text-black" />}
-                          </div>
-
-                          {/* Title & Criteria */}
-                          <div>
-                            <h3 className={`font-medium ${task.status === 'completed' && 'line-through text-gray-500'}`}>
-                              {task.title}
-                            </h3>
-                            {task.status !== 'completed' && <p className="text-xs text-gray-500">{task.success_criteria}</p>}
-                          </div>
-                        </div>
-
-                        {/* --- TIME DISPLAY (UPDATED) --- */}
-                        <div className="flex flex-col items-end gap-1">
-                          {/* The Scheduled Time (e.g. 18:30) */}
-                          {task.scheduled_time && (
-                            <span className="text-sm font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                              {task.scheduled_time}
-                            </span>
-                          )}
-                          {/* The Duration (e.g. 15m) */}
-                          <span className="text-[10px] font-mono text-gray-600">
-                            {task.estimated_time} MIN
-                          </span>
-                        </div>
-                      </div>
+                {tasks.length === 0 && !loading ? (
+                  <div className="flex flex-col items-center justify-center h-full pb-20">
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+                      <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">{isConfigured ? "DAEMON ONLINE." : <span className="text-gray-500">SYSTEM OFFLINE.</span>}</h1>
+                      <p className="text-gray-500 text-lg max-w-md mx-auto">{isConfigured ? "Awaiting Directives. Type below to plan." : "Configuration required."}</p>
                     </motion.div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <TimelineView tasks={tasks} openTask={openTask} />
+                )}
               </>
             )}
           </div>
