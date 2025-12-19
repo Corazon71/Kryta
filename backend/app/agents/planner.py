@@ -28,13 +28,13 @@ class PlannerAgent(BaseAgent):
             "current_day": day_of_week,
             "available_minutes": available_time,
             "user_context": profile_context,
-            "existing_schedule": existing_schedule, # <--- INJECT SCHEDULE
+            "existing_schedule": existing_schedule,
             "rules": [
                 "Max task size: 20 minutes",
                 "Must define minimum_viable_done",
                 "CRITICAL: Avoid double-booking.",
                 f"The User already has tasks scheduled at: {existing_schedule}",
-                "Find the next available time slot that fits the user's constraints.",
+                "MANDATORY: Add a 10-minute buffer/break between every task.", 
                 "Output 'scheduled_time' in 24hr format (HH:MM)."
             ]
         }
