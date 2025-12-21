@@ -9,27 +9,33 @@ class User(SQLModel, table=True):
     xp: int = Field(default=0)
     streak: int = Field(default=0)
     
-    # --- NEW CONTEXT FIELDS ---
-    work_hours: Optional[str] = None  # e.g. "9:00 AM - 5:00 PM"
-    core_goals: Optional[str] = None  # e.g. "Learn GenAI, Get Fit"
-    bad_habits: Optional[str] = None  # e.g. "Doomscrolling, Procrastination"
+    # Context
+    work_hours: Optional[str] = None
+    core_goals: Optional[str] = None
+    bad_habits: Optional[str] = None
+    
+    # Safety Protocol (New)
+    failure_streak: int = Field(default=0) # Tracks consecutive failures
 
 class Task(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id")
     title: str
-    description: Optional[str] = None
     status: str = Field(default="pending")
     estimated_time: int 
     
-    # --- NEW FIELDS ---
-    scheduled_time: Optional[str] = None # e.g. "18:30" or "Tomorrow 09:00"
+    # Scheduling
+    scheduled_time: Optional[str] = None 
     is_urgent: bool = Field(default=False)
     
+    # Clarity & Trust (New)
     success_criteria: str
+    proof_instruction: Optional[str] = None # e.g. "Upload screenshot of terminal"
     minimum_viable_done: str
+    last_failure_reason: Optional[str] = None # Stores why it was rejected
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class AppSettings(SQLModel, table=True):
-    key: str = Field(primary_key=True) # e.g., "groq_api_key"
+    key: str = Field(primary_key=True)
     value: str

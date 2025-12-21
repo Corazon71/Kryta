@@ -128,21 +128,20 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
             session.commit()
             session.refresh(user)
 
-        # Inside generate_plan function loop:
-
         for task_data in result["tasks"]:
             task = Task(
                 user_id=user.id,
                 title=task_data.get("title", "Untitled"),
                 estimated_time=task_data.get("estimated_time", 10),
-                
-                # --- NEW MAPPING ---
                 scheduled_time=task_data.get("scheduled_time", "Pending"),
                 is_urgent=task_data.get("is_urgent", False),
-                # -------------------
-                
                 success_criteria=task_data.get("success_criteria", "Complete it"),
                 minimum_viable_done=task_data.get("minimum_viable_done", "Do it"),
+                
+                # --- NEW FIELD ---
+                proof_instruction=task_data.get("proof_instruction", "Upload visual proof."),
+                # -----------------
+                
                 status="pending"
             )
             session.add(task)
@@ -158,38 +157,39 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
     
     return {"status": "error", "message": "No tasks generated", "debug": result}
 
+
 @app.post("/verify")
 def verify_proof(request: ProofRequest, session: Session = Depends(get_session)):
+    # ... (Fetch task and user logic remains same) ...
     task = session.get(Task, request.task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
+    if not task: raise HTTPException(status_code=404, detail="Task not found")
+    
+    # ... (Fetch user logic) ...
     user = session.exec(select(User)).first()
-    if not user:
-        user = User(name="AlphaUser", xp=0, streak=0)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
 
+    # Call Verifier
     verifier = VerifierAgent()
     verification_result = verifier.verify_task(
         task_title=task.title,
         success_criteria=task.success_criteria,
         user_proof=request.proof_content,
-        image_data=request.proof_image  # <--- PASS THE IMAGE HERE
+        image_data=request.proof_image
     )
 
     verdict = verification_result.get("verdict", "retry").lower()
-    quality_score = verification_result.get("quality_score", 0)
-    reward_data = {}
-
+    reason = verification_result.get("reason", "Criteria not met.")
+    
+    # --- LOGIC UPDATE START ---
     if verdict == "pass":
         task.status = "completed"
+        task.last_failure_reason = None # Clear previous errors
+        
+        # Motivator Logic
         motivator = MotivatorAgent()
         reward_data = motivator.distribute_rewards(
             task_title=task.title,
             estimated_time=task.estimated_time,
-            quality_score=quality_score,
+            quality_score=verification_result.get("quality_score", 0),
             current_streak=user.streak
         )
         user.xp += reward_data.get("xp_awarded", 0)
@@ -197,9 +197,19 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
         session.add(user)
         
     elif verdict == "partial":
-        task.status = "partial"
+        task.status = "partial" # UI will show this as a warning but keep task open
+        task.last_failure_reason = f"PARTIAL CREDIT: {reason}" # Save feedback
+        
+        # Optional: Give half XP here if you want
+        
     else:
+        # Retry / Fail
         task.status = "retry"
+        task.last_failure_reason = reason # <--- SAVE THE FEEDBACK
+        
+        # Safety Protocol: Increment failure streak
+        user.failure_streak += 1 
+        session.add(user)
 
     session.add(task)
     session.commit()
@@ -210,11 +220,8 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
         "status": "processed",
         "task_status": task.status,
         "verification": verification_result,
-        "reward": {
-            "xp_gained": reward_data.get("xp_awarded", 0),
-            "message": reward_data.get("message"),
-            "total_user_xp": user.xp
-        },
+        # ... rest of return ...
+        "reward": locals().get('reward_data', {}), # Safe get
         "task": task.model_dump()
     }
 
