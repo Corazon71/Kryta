@@ -296,6 +296,8 @@ function App() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [toast, setToast] = useState(null);
 
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockMessage, setLockMessage] = useState("");
   // 2. INITIALIZE AUDIO
   const { playClick, playSuccess, playError, speak } = useDaemonAudio();
 
@@ -368,6 +370,14 @@ function App() {
     setLoading(true);
     try {
       const res = await api.verifyTask(activeTask.id, proof, proofImage);
+      if (res.status === 'locked') {
+        setIsLocked(true);
+        setLockMessage(res.verification?.reason || res.message);
+        setActiveTask(null); // Close task modal
+        playError(); // SFX
+        setLoading(false);
+        return;
+      }
       setTasks(prev => prev.map(t => t.id === activeTask.id ? { ...t, status: res.task_status } : t));
       if (res.task_status === 'completed' && res.reward) {
         setUser(prev => ({ ...prev, xp: res.reward.total_user_xp, streak: res.reward.current_streak }));
@@ -500,6 +510,36 @@ function App() {
             {toast.type === 'success' ? <Trophy size={18} /> : toast.type === 'error' ? <AlertTriangle size={18} /> : <Terminal size={18} />}
             <span className="font-mono text-sm font-bold tracking-wide uppercase truncate">{toast.message}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+      {/* --- SYSTEM LOCKDOWN OVERLAY --- */}
+      <AnimatePresence>
+        {isLocked && (
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-[200] bg-red-950/90 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8"
+            >
+                <div className="mb-6 animate-pulse">
+                    <AlertTriangle size={80} className="text-red-500" />
+                </div>
+                <h1 className="text-5xl font-black text-red-500 tracking-tighter mb-4 glitch-text">SYSTEM OVERHEAT</h1>
+                <p className="text-red-200 font-mono text-xl max-w-lg border-t border-b border-red-500/30 py-4">
+                    {lockMessage || "TOO MANY FAILED ATTEMPTS. COOLING DOWN NEURAL LINK."}
+                </p>
+                <p className="mt-8 text-red-400/50 text-sm font-mono uppercase tracking-widest">
+                    PLEASE STEP AWAY FROM THE TERMINAL
+                </p>
+                
+                {/* Emergency Unlock (Optional: Or just wait) */}
+                <button 
+                    onClick={() => setIsLocked(false)} 
+                    className="mt-12 text-xs text-red-900 hover:text-red-500 transition-colors"
+                >
+                    [ ACKNOWLEDGE ]
+                </button>
+            </motion.div>
         )}
       </AnimatePresence>
     </div>

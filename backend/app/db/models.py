@@ -16,6 +16,7 @@ class User(SQLModel, table=True):
     
     # Safety Protocol (New)
     failure_streak: int = Field(default=0) # Tracks consecutive failures
+    lockout_until: Optional[datetime] = None # Stores timestamp when ban ends
 
 class Task(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)

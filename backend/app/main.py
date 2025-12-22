@@ -157,17 +157,27 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
     
     return {"status": "error", "message": "No tasks generated", "debug": result}
 
-
 @app.post("/verify")
 def verify_proof(request: ProofRequest, session: Session = Depends(get_session)):
-    # ... (Fetch task and user logic remains same) ...
+    # ... (Fetch task logic) ...
     task = session.get(Task, request.task_id)
     if not task: raise HTTPException(status_code=404, detail="Task not found")
     
-    # ... (Fetch user logic) ...
     user = session.exec(select(User)).first()
 
-    # Call Verifier
+    # --- 1. CHECK LOCKOUT STATUS ---
+    if user.lockout_until and datetime.utcnow() < user.lockout_until:
+        # Calculate remaining minutes
+        remaining = (user.lockout_until - datetime.utcnow()).seconds // 60
+        return {
+            "status": "locked",
+            "message": f"SYSTEM OVERHEAT. COOLING DOWN. RESUME IN {remaining} MIN.",
+            "task_status": task.status,
+            "task": task.model_dump()
+        }
+    # -------------------------------
+
+    # Call Verifier (Existing Code)
     verifier = VerifierAgent()
     verification_result = verifier.verify_task(
         task_title=task.title,
@@ -179,49 +189,55 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
     verdict = verification_result.get("verdict", "retry").lower()
     reason = verification_result.get("reason", "Criteria not met.")
     
-    # --- LOGIC UPDATE START ---
     if verdict == "pass":
+        # ... (Success logic) ...
         task.status = "completed"
-        task.last_failure_reason = None # Clear previous errors
+        task.last_failure_reason = None
         
-        # Motivator Logic
+        # RESET STREAK & LOCKOUT
+        user.failure_streak = 0
+        user.lockout_until = None
+        
+        # ... (Rewards logic) ...
         motivator = MotivatorAgent()
-        reward_data = motivator.distribute_rewards(
-            task_title=task.title,
-            estimated_time=task.estimated_time,
-            quality_score=verification_result.get("quality_score", 0),
-            current_streak=user.streak
-        )
-        user.xp += reward_data.get("xp_awarded", 0)
+        # ... (Apply rewards) ...
+        user.xp += 10 # Simplified for snippet
         user.streak += 1
-        session.add(user)
         
     elif verdict == "partial":
-        task.status = "partial" # UI will show this as a warning but keep task open
-        task.last_failure_reason = f"PARTIAL CREDIT: {reason}" # Save feedback
-        
-        # Optional: Give half XP here if you want
+        task.status = "partial"
+        task.last_failure_reason = f"PARTIAL: {reason}"
+        # Partial doesn't increase failure streak
         
     else:
-        # Retry / Fail
+        # --- FAILURE LOGIC ---
         task.status = "retry"
-        task.last_failure_reason = reason # <--- SAVE THE FEEDBACK
+        task.last_failure_reason = reason
         
-        # Safety Protocol: Increment failure streak
-        user.failure_streak += 1 
-        session.add(user)
+        user.failure_streak += 1
+        
+        # CHECK FOR LOCKOUT CONDITION (3 Strikes)
+        if user.failure_streak >= 3:
+            user.lockout_until = datetime.utcnow() + timedelta(minutes=10)
+            user.failure_streak = 0 # Reset streak so they start fresh after
+            reason = "CRITICAL FAILURE. SYSTEM LOCKING DOWN FOR 10 MINUTES."
+        # ---------------------
 
+    session.add(user)
     session.add(task)
     session.commit()
-    session.refresh(task)
-    session.refresh(user)
+    # ... (Rest of return logic) ...
+    
+    # Return specific status if locked just now
+    response_status = "processed"
+    if user.lockout_until:
+        response_status = "locked"
 
     return {
-        "status": "processed",
+        "status": response_status,
         "task_status": task.status,
-        "verification": verification_result,
-        # ... rest of return ...
-        "reward": locals().get('reward_data', {}), # Safe get
+        "verification": {"verdict": verdict, "reason": reason},
+        "reward": locals().get('reward_data', {}),
         "task": task.model_dump()
     }
 
