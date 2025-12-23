@@ -8,7 +8,7 @@ export const api = {
     const res = await axios.post(`${API_URL}/user/onboard`, data);
     return res.data;
   },
-  
+
   planDay: async (goal, time) => {
     const res = await axios.post(`${API_URL}/plan`, { goal, available_time: time });
     return res.data;
@@ -33,6 +33,11 @@ export const api = {
     return res.data;
   },
 
+  generateReport: async () => {
+    const res = await axios.post(`${API_URL}/analytics/report`);
+    return res.data;
+  },
+  
   saveKey: async (apiKey) => {
     const res = await axios.post(`${API_URL}/settings/key`, { api_key: apiKey });
     return res.data;
@@ -42,4 +47,5 @@ export const api = {
     const res = await axios.get(`${API_URL}/settings/key`);
     return res.data;
   }
+
 };

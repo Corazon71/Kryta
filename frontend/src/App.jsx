@@ -249,10 +249,92 @@ const SettingsView = ({ showToast, setIsConfigured, playClick }) => {
 // --- COMPONENT: Analytics View ---
 const AnalyticsView = () => {
   const [data, setData] = useState(null);
-  useEffect(() => { api.getAnalytics().then(setData).catch(console.error); }, []);
+  const [report, setReport] = useState(null);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    api.getAnalytics().then(setData).catch(console.error);
+  }, []);
+  const handleGenerateReport = async () => {
+    setGenerating(true);
+    try {
+      const res = await api.generateReport(); // Need to add this to api.js!
+      setReport(res);
+    } catch (e) { alert("Analysis Failed"); }
+    setGenerating(false);
+  };
   if (!data) return <div className="text-gray-500 mt-20 flex items-center gap-2"><Loader2 className="animate-spin" /> Accessing Data Logs...</div>;
+  // Color for Trust Meter
+  const trustColor = data.stats.trust_score > 80 ? 'text-green-500' : data.stats.trust_score > 50 ? 'text-yellow-500' : 'text-red-500';
   return (
     <div className="w-full max-w-4xl mt-10 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* ROW 1: METRICS & TRUST */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md col-span-1">
+          <div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Success Rate</div>
+          <div className="text-3xl font-bold text-white">{data.stats.completion_rate}%</div>
+        </div>
+
+        {/* HONESTY METER */}
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md col-span-2 flex items-center justify-between relative overflow-hidden">
+          <div className="relative z-10">
+            <div className="text-gray-500 text-xs uppercase tracking-widest mb-1 flex items-center gap-2">
+              <Target size={12} /> System Trust Level
+            </div>
+            <div className={`text-4xl font-mono font-bold ${trustColor} tracking-tighter`}>
+              {data.stats.trust_score}%
+            </div>
+          </div>
+          {/* Visual Bar */}
+          <div className="w-32 h-2 bg-gray-800 rounded-full overflow-hidden">
+            <div className={`h-full ${data.stats.trust_score > 80 ? 'bg-green-500' : 'bg-red-500'} transition-all duration-1000`} style={{ width: `${data.stats.trust_score}%` }} />
+          </div>
+          <div className={`absolute right-0 top-0 bottom-0 w-1 ${data.stats.trust_score > 80 ? 'bg-green-500' : 'bg-red-500'} opacity-20`} />
+        </div>
+
+        <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md col-span-1">
+          <div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Failed</div>
+          <div className="text-3xl font-bold text-red-500">{data.stats.total_failed}</div>
+        </div>
+      </div>
+
+      {/* ROW 2: TACTICAL DEBRIEF (The Reflector) */}
+      <div className="bg-surface/50 border border-border p-6 rounded-3xl backdrop-blur-md mb-6 min-h-[160px]">
+        <div className="flex justify-between items-start mb-4">
+          <h3 className="text-gray-400 text-sm font-mono uppercase tracking-widest flex items-center gap-2">
+            <Terminal size={14} /> Tactical Debrief
+          </h3>
+          {!report && (
+            <button
+              onClick={handleGenerateReport}
+              disabled={generating}
+              className="bg-primary/20 text-primary border border-primary/50 px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-primary/30 transition-colors flex items-center gap-2"
+            >
+              {generating ? <Loader2 size={12} className="animate-spin" /> : "GENERATE REPORT"}
+            </button>
+          )}
+        </div>
+
+        {report ? (
+          <div className="animate-in fade-in slide-in-from-left-2">
+            <div className="flex items-center gap-3 mb-2">
+              <h4 className="text-white font-bold tracking-tight text-lg">{report.title}</h4>
+              <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-gray-300 border border-white/10">{report.status}</span>
+            </div>
+            <p className="text-gray-400 text-sm leading-relaxed mb-4">{report.analysis}</p>
+            <div className="bg-black/30 p-3 rounded-lg border-l-2 border-primary">
+              <span className="text-primary text-xs font-bold block mb-1">RECOMMENDED STRATEGY</span>
+              <p className="text-gray-300 text-xs font-mono">{report.strategy}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-2 py-4">
+            <div className="w-12 h-1 bg-gray-800 rounded-full" />
+            <p className="text-xs font-mono uppercase">Awaiting Command to Analyze History</p>
+          </div>
+        )}
+      </div>
+      {/* ROW 3: HEATMAP */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md"><div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Success Rate</div><div className="text-3xl font-bold text-white">{data.stats.completion_rate}%</div></div>
         <div className="bg-surface/50 border border-border p-5 rounded-2xl backdrop-blur-md"><div className="text-gray-500 text-xs uppercase tracking-widest mb-1">Missions Done</div><div className="text-3xl font-bold text-accent">{data.stats.total_completed}</div></div>
@@ -515,31 +597,31 @@ function App() {
       {/* --- SYSTEM LOCKDOWN OVERLAY --- */}
       <AnimatePresence>
         {isLocked && (
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-[200] bg-red-950/90 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[200] bg-red-950/90 backdrop-blur-xl flex flex-col items-center justify-center text-center p-8"
+          >
+            <div className="mb-6 animate-pulse">
+              <AlertTriangle size={80} className="text-red-500" />
+            </div>
+            <h1 className="text-5xl font-black text-red-500 tracking-tighter mb-4 glitch-text">SYSTEM OVERHEAT</h1>
+            <p className="text-red-200 font-mono text-xl max-w-lg border-t border-b border-red-500/30 py-4">
+              {lockMessage || "TOO MANY FAILED ATTEMPTS. COOLING DOWN NEURAL LINK."}
+            </p>
+            <p className="mt-8 text-red-400/50 text-sm font-mono uppercase tracking-widest">
+              PLEASE STEP AWAY FROM THE TERMINAL
+            </p>
+
+            {/* Emergency Unlock (Optional: Or just wait) */}
+            <button
+              onClick={() => setIsLocked(false)}
+              className="mt-12 text-xs text-red-900 hover:text-red-500 transition-colors"
             >
-                <div className="mb-6 animate-pulse">
-                    <AlertTriangle size={80} className="text-red-500" />
-                </div>
-                <h1 className="text-5xl font-black text-red-500 tracking-tighter mb-4 glitch-text">SYSTEM OVERHEAT</h1>
-                <p className="text-red-200 font-mono text-xl max-w-lg border-t border-b border-red-500/30 py-4">
-                    {lockMessage || "TOO MANY FAILED ATTEMPTS. COOLING DOWN NEURAL LINK."}
-                </p>
-                <p className="mt-8 text-red-400/50 text-sm font-mono uppercase tracking-widest">
-                    PLEASE STEP AWAY FROM THE TERMINAL
-                </p>
-                
-                {/* Emergency Unlock (Optional: Or just wait) */}
-                <button 
-                    onClick={() => setIsLocked(false)} 
-                    className="mt-12 text-xs text-red-900 hover:text-red-500 transition-colors"
-                >
-                    [ ACKNOWLEDGE ]
-                </button>
-            </motion.div>
+              [ ACKNOWLEDGE ]
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

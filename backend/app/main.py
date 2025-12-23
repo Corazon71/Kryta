@@ -14,6 +14,7 @@ from .db.models import Task, User, AppSettings
 from .agents.planner import PlannerAgent
 from .agents.verifier import VerifierAgent
 from .agents.motivator import MotivatorAgent
+from .agents.reflector import ReflectorAgent
 
 app = FastAPI()
 
@@ -327,15 +328,53 @@ def get_analytics(session: Session = Depends(get_session)):
 
     chart_data = [{"day": k, "minutes": v} for k, v in daily_xp.items()]
 
+    verifiable_tasks = [t for t in tasks if t.status in ['completed', 'failed', 'retry', 'partial']]
+    total_verified = len(verifiable_tasks)
+    
+    trust_score = 100 # Default
+    if total_verified > 0:
+        good_outcomes = len([t for t in verifiable_tasks if t.status in ['completed', 'partial']])
+        trust_score = int((good_outcomes / total_verified) * 100)
+    # ----------------------------------
+
     return {
-        "chart_data": chart_data, # (Your existing 7-day data)
-        "heatmap_data": heatmap_data, # <--- NEW
+        "chart_data": chart_data, # (Existing)
+        "heatmap_data": heatmap_data, # (Existing)
         "stats": {
             "total_completed": total_completed,
             "total_failed": total_failed,
-            "completion_rate": int((total_completed / (total_completed + total_failed + 1)) * 100)
+            "completion_rate": int((total_completed / (total_completed + total_failed + 1)) * 100),
+            "trust_score": trust_score # <--- NEW
         }
     }
+
+@app.post("/analytics/report")
+def generate_report(session: Session = Depends(get_session)):
+    user = session.exec(select(User)).first()
+    
+    # Fetch last 7 days for the report
+    week_start = datetime.utcnow() - timedelta(days=7)
+    recent_tasks = session.exec(
+        select(Task).where(Task.created_at >= week_start)
+    ).all()
+    
+    # Summarize for LLM (Text compression)
+    history_text = "\n".join([
+        f"- {t.title}: {t.status.upper()} ({t.last_failure_reason or 'No issues'})"
+        for t in recent_tasks
+    ])
+    
+    # Calculate Score
+    verifiable = [t for t in recent_tasks if t.status in ['completed', 'retry']]
+    score = 100
+    if verifiable:
+        score = int((len([t for t in verifiable if t.status=='completed']) / len(verifiable)) * 100)
+
+    # Call Agent
+    reflector = ReflectorAgent()
+    report = reflector.generate_debrief(user.name, history_text, score)
+    
+    return report
 
 @app.post("/settings/key")
 def save_api_key(request: KeyRequest, session: Session = Depends(get_session)):
