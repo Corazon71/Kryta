@@ -26,6 +26,7 @@ class Task(SQLModel, table=True):
     estimated_time: int 
     
     # Scheduling
+    priority: str = Field(default="medium") # new field
     scheduled_time: Optional[str] = None 
     is_urgent: bool = Field(default=False)
     

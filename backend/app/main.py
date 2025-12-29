@@ -136,6 +136,7 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
                 estimated_time=task_data.get("estimated_time", 10),
                 scheduled_time=task_data.get("scheduled_time", "Pending"),
                 is_urgent=task_data.get("is_urgent", False),
+                priority=task_data.get("priority", "medium"), # <--- NEW
                 success_criteria=task_data.get("success_criteria", "Complete it"),
                 minimum_viable_done=task_data.get("minimum_viable_done", "Do it"),
                 
