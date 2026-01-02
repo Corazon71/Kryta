@@ -1,7 +1,18 @@
 {
-  "name": "frontend",
+  "name": "daimon-ai",
+  "productName": "DAEMON",
   "private": true,
-  "version": "0.0.0",
+  "version": "3.0.0",
+  "description": "Run in the Background. Execute in Reality. AI-Powered Productivity OS.",
+  "author": {
+    "name": "Gurunath Salve",
+    "email": "gurunaths6102003@gmail.com"
+  },
+  "homepage": "https://github.com/corazon71/aitodo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/corazon71/aitodo.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
