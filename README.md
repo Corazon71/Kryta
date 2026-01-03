@@ -1,12 +1,12 @@
 
 ***
 
-# 👁️ DAEMON
+# 👁️ KRYTA
 > **"Run in the Background. Execute in Reality."**
 
-**DAEMON** is not a to-do list. It is an AI-powered **Productivity Operating System** designed to gamify your life and enforce discipline. It uses LLM Agents to plan your day, Vision AI to verify your work, and a tactical HUD to track your consistency.
+**KRYTA** is not a to-do list. It is an AI-powered **Productivity Operating System** designed to gamify your life and enforce discipline. It uses LLM Agents to plan your day, Vision AI to verify your work, and a tactical HUD to track your consistency.
 
-![Daemon Interface](https://via.placeholder.com/1200x600?text=DAEMON+Command+Center+v3.0)
+![KRYTA Interface](https://via.placeholder.com/1200x600?text=KRYTA+Command+Center+v3.0)
 
 ## ⚡ Core Systems (v3.0)
 
@@ -136,7 +136,7 @@ npm exec electron-builder
 ## 📂 Project Structure
 
 ```
-DAEMON/
+KRYTA/
 ├── backend/
 │   ├── app/
 │   │   ├── agents/      # Planner, Verifier, Reflector Logic

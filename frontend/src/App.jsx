@@ -6,7 +6,7 @@ import {
   Play, Pause, X, Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle, KeyRound
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useDaemonAudio } from './hooks/useDaemonAudio';
+import { useKRYTAAudio } from './hooks/useKRYTAAudio';
 
 // --- STYLES ---
 const globalStyles = `
@@ -164,7 +164,7 @@ const SetupView = ({ onComplete }) => {
             {verifying ? <Loader2 className="animate-spin mx-auto" /> : "INITIALIZE SYSTEM"}
           </button>
         </div>
-        <div className="mt-8 text-xs text-gray-700 font-mono">DAEMON v3.0 // SECURITY CHECKPOINT</div>
+        <div className="mt-8 text-xs text-gray-700 font-mono">KRYTA v3.0 // SECURITY CHECKPOINT</div>
       </motion.div>
     </div>
   );
@@ -282,7 +282,7 @@ function App() {
   const [isLocked, setIsLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState("");
 
-  const { playClick, playSuccess, playError, speak } = useDaemonAudio();
+  const { playClick, playSuccess, playError, speak } = useKRYTAAudio();
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -318,7 +318,7 @@ function App() {
   // --- GREETING (Only runs once when both true) ---
   useEffect(() => {
     if (appReady && isConfigured && isOnboarded) {
-      setTimeout(() => speak(`DAEMON Online. Welcome back, ${user.name}.`), 1000);
+      setTimeout(() => speak(`KRYTA Online. Welcome back, ${user.name}.`), 1000);
     }
   }, [appReady, isConfigured, isOnboarded]);
 
@@ -367,7 +367,7 @@ function App() {
         showToast(`New Mission Acquired: ${res.tasks.length} Objectives`, "info");
         speak("Mission parameters logged.");
       }
-    } catch (e) { showToast("Daemon Connection Failed", "error"); playError(); }
+    } catch (e) { showToast("KRYTA Connection Failed", "error"); playError(); }
     setLoading(false);
   };
 
@@ -427,7 +427,7 @@ function App() {
               <div className="flex-1 max-w-2xl mx-4 pointer-events-auto">
                 <div className="bg-surface/80 backdrop-blur-md border border-border rounded-2xl p-1 flex items-center shadow-2xl ring-1 ring-white/5 transition-all">
                   <div className="px-4 animate-pulse text-primary"><Terminal size={18} /></div>
-                  <input type="text" className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-600 h-12 font-medium" placeholder={loading ? "DAEMON is thinking..." : "Enter mission objective..."} value={goal} onChange={(e) => setGoal(e.target.value)} onKeyDown={handlePlan} disabled={loading} />
+                  <input type="text" className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-600 h-12 font-medium" placeholder={loading ? "KRYTA is thinking..." : "Enter mission objective..."} value={goal} onChange={(e) => setGoal(e.target.value)} onKeyDown={handlePlan} disabled={loading} />
                   {loading && <Loader2 className="animate-spin text-gray-500 mr-4" size={18} />}
                 </div>
               </div>
@@ -445,7 +445,7 @@ function App() {
                   {tasks.length === 0 && !loading ? (
                     <div className="flex flex-col items-center justify-center h-full pb-20">
                       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-                        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">DAEMON ONLINE.</h1>
+                        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">KRYTA ONLINE.</h1>
                         <p className="text-gray-500 text-lg max-w-md mx-auto">Awaiting mission parameters.</p>
                       </motion.div>
                     </div>
