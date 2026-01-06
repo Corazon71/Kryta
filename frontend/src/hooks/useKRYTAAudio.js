@@ -1,7 +1,7 @@
 import useSound from 'use-sound';
 import { useCallback } from 'react';
 
-export const useDaemonAudio = () => {
+export const useKRYTAAudio = () => {
   // Load SFX (Paths are relative to the public folder)
   const [playClick] = useSound('/sounds/click.mp3', { volume: 0.5 });
   const [playSuccess] = useSound('/sounds/success.mp3', { volume: 0.4 });
@@ -15,16 +15,16 @@ export const useDaemonAudio = () => {
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    
+
     // Config: Try to find a "System" or "Robot" like voice
     const voices = window.speechSynthesis.getVoices();
     // Prefer Microsoft Zira (Windows) or Samantha (Mac) or Google US English
-    const preferredVoice = voices.find(v => 
-        v.name.includes("Zira") || v.name.includes("Samantha") || v.name.includes("Google US English")
+    const preferredVoice = voices.find(v =>
+      v.name.includes("Zira") || v.name.includes("Samantha") || v.name.includes("Google US English")
     );
-    
+
     if (preferredVoice) utterance.voice = preferredVoice;
-    
+
     utterance.pitch = 0.9; // Slightly lower pitch for authority
     utterance.rate = 1.1;  // Slightly faster execution
     utterance.volume = 0.8;

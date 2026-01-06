@@ -1,4 +1,4 @@
-import os
+import os, uuid
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # <-- IMPORT THIS
 from sqlmodel import Session, select
@@ -123,26 +123,33 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
     
     saved_tasks = []
     if "tasks" in result and len(result["tasks"]) > 0:
-        if not user:
-            user = User(name="Operator")
-            session.add(user)
-            session.commit()
-            session.refresh(user)
+        # Check if this is a recurring batch (heuristic: same title, multiple dates)
+        is_recurring = len(result["tasks"]) > 1
+        routine_id = str(uuid.uuid4()) if is_recurring else None
 
         for task_data in result["tasks"]:
+            # Parse Date
+            t_date_str = task_data.get("target_date", date.today().isoformat())
+            try:
+                t_date = datetime.strptime(t_date_str, "%Y-%m-%d").date()
+            except:
+                t_date = date.today()
+
             task = Task(
                 user_id=user.id,
                 title=task_data.get("title", "Untitled"),
                 estimated_time=task_data.get("estimated_time", 10),
                 scheduled_time=task_data.get("scheduled_time", "Pending"),
                 is_urgent=task_data.get("is_urgent", False),
-                priority=task_data.get("priority", "medium"), # <--- NEW
-                success_criteria=task_data.get("success_criteria", "Complete it"),
+                priority=task_data.get("priority", "medium"),
+                success_criteria=task_data.get("success_criteria", "Complete"),
                 minimum_viable_done=task_data.get("minimum_viable_done", "Do it"),
+                proof_instruction=task_data.get("proof_instruction", "Proof"),
                 
-                # --- NEW FIELD ---
-                proof_instruction=task_data.get("proof_instruction", "Upload visual proof."),
-                # -----------------
+                # --- NEW FIELDS ---
+                target_date=t_date,
+                routine_id=routine_id,
+                # ------------------
                 
                 status="pending"
             )
@@ -242,6 +249,23 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
         "reward": locals().get('reward_data', {}),
         "task": task.model_dump()
     }
+
+@app.get("/calendar")
+def get_calendar_tasks(session: Session = Depends(get_session)):
+    user = session.exec(select(User)).first()
+    if not user: return []
+
+    today = date.today()
+    end_date = today + timedelta(days=30)
+    
+    tasks = session.exec(
+        select(Task)
+        .where(Task.user_id == user.id)
+        .where(Task.target_date >= today)
+        .where(Task.target_date <= end_date)
+    ).all()
+    
+    return [t.model_dump() for t in tasks]
 
 @app.get("/analytics")
 def get_analytics(session: Session = Depends(get_session)):

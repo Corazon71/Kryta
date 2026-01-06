@@ -3,7 +3,7 @@ import { api } from './api';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Flame, Target, CheckCircle, Loader2,
-  Play, Pause, X, Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle, KeyRound
+  Play, Pause, X, Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle, Calendar, Radar
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useKRYTAAudio } from './hooks/useKRYTAAudio';
@@ -25,6 +25,226 @@ const timeToMinutes = (timeStr) => {
 const getCurrentMinutes = () => {
   const now = new Date();
   return now.getHours() * 60 + now.getMinutes();
+};
+
+const getDaysDifference = (targetDateStr) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDateStr);
+  target.setHours(0, 0, 0, 0);
+  const diffTime = Math.abs(target - today);
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// --- COMPONENT: Spiral/Radar View (Final Layout) ---
+const SpiralView = ({ openTask, playClick }) => {
+  const [tasks, setTasks] = useState([]);
+  const [hoveredTask, setHoveredTask] = useState(null);
+  const [maxDays, setMaxDays] = useState(7);
+
+  useEffect(() => {
+    api.getCalendar().then(setTasks).catch(console.error);
+  }, []);
+
+  // --- MATH HELPERS ---
+  const polarToCartesian = (centerX, centerY, radius, angleInDegrees) => {
+    var angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+    return {
+      x: centerX + (radius * Math.cos(angleInRadians)),
+      y: centerY + (radius * Math.sin(angleInRadians))
+    };
+  };
+
+  const describeArc = (x, y, radius, startAngle, endAngle) => {
+    var start = polarToCartesian(x, y, radius, endAngle);
+    var end = polarToCartesian(x, y, radius, startAngle);
+    var largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+    return [
+      "M", start.x, start.y,
+      "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
+    ].join(" ");
+  };
+
+  // SVG Config
+  const size = 600;
+  const center = size / 2;
+  const innerRadius = 50;
+  const dayGap = Math.min(35, 230 / maxDays);
+
+  const handleScroll = (e) => {
+    if (e.deltaY > 0) setMaxDays(prev => Math.min(30, prev + 1));
+    else setMaxDays(prev => Math.max(7, prev - 1));
+  };
+
+  const getDateLabel = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return offset === 0 ? "TODAY" : offset === 1 ? "TOMORROW" : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase();
+  };
+
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr) return -1;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return (hours * 60) + minutes;
+  };
+
+  if (tasks.length === 0) return <div className="h-full flex items-center justify-center text-gray-500 font-mono"><Loader2 className="animate-spin mr-2" /> SCANNING TEMPORAL DATA...</div>;
+
+  return (
+    <div
+      onWheel={handleScroll}
+      className="w-full h-full flex flex-col items-center justify-center relative pb-20 overflow-hidden cursor-ns-resize"
+    >
+
+      {/* 1. TOP-RIGHT: TASK DETAIL BOX (Visible on Hover) */}
+      <AnimatePresence>
+        {hoveredTask && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
+            className="absolute top-12 right-8 z-50 bg-surface/90 border border-primary/50 p-6 rounded-2xl shadow-[0_0_50px_rgba(124,58,237,0.3)] max-w-sm backdrop-blur-xl pointer-events-none"
+          >
+            <div className="flex items-center gap-2 mb-3 border-b border-white/10 pb-2 justify-end">
+              <span className="text-gray-400 font-mono text-xs mr-auto">{hoveredTask.scheduled_time}</span>
+              <span className="text-primary font-mono text-xs font-bold tracking-widest">{hoveredTask.target_date}</span>
+              <div className={`w-2 h-2 rounded-full ${hoveredTask.is_urgent ? 'bg-red-500' : 'bg-primary'} animate-pulse`}></div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-white leading-tight mb-2 text-right">{hoveredTask.title}</h2>
+            <div className="flex gap-4 text-xs font-mono text-gray-500 uppercase justify-end">
+              <span>PRIORITY: {hoveredTask.priority.toUpperCase()}</span>
+              <span>EST: {hoveredTask.estimated_time} MIN</span>
+            </div>
+
+            <div className="mt-4 text-right">
+              <div className="text-[10px] text-primary/70 border border-primary/20 rounded px-2 py-1 inline-block">
+                CLICK TO INITIALIZE
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 2. BOTTOM-LEFT: HUD HEADER */}
+      <div className="absolute bottom-12 left-8 border-l-2 border-primary pl-4 pointer-events-none z-10 transition-all text-left">
+        <h3 className="font-bold text-white text-2xl tracking-tighter">TEMPORAL RADAR</h3>
+        <p className="text-primary font-mono text-xs uppercase tracking-widest mt-1">SCAN RANGE: {maxDays} DAYS</p>
+        <p className="text-gray-500 font-mono text-[9px] mt-1 opacity-50 uppercase tracking-tighter">SCROLL TO EXPAND RANGE</p>
+        <div className="mt-2 flex items-center justify-start gap-2 text-[10px] text-gray-500 font-mono">
+          <span className="w-2 h-2 rounded-full bg-primary"></span> ROUTINE
+          <span className="w-2 h-2 rounded-full bg-red-500 ml-2"></span> URGENT
+        </div>
+      </div>
+
+      {/* 3. CENTER: The Radar SVG */}
+      <div className="relative group scale-90 lg:scale-100 transition-transform">
+        <div className="absolute inset-0 rounded-full border border-primary/5 animate-[spin_10s_linear_infinite] pointer-events-none" style={{ maskImage: 'conic-gradient(from 0deg, transparent 0deg, black 360deg)' }} />
+
+        <svg width={size} height={size} className="overflow-visible">
+          <defs>
+            <radialGradient id="radar-glow" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          <circle cx={center} cy={center} r={innerRadius + (maxDays * dayGap)} fill="url(#radar-glow)" />
+
+          {/* Date Rings */}
+          {[...Array(maxDays)].map((_, i) => {
+            const r = innerRadius + (i * dayGap);
+            const showLabel = maxDays <= 10 || i % 5 === 0 || i === maxDays - 1;
+            return (
+              <g key={`ring-${i}`}>
+                <circle cx={center} cy={center} r={r} fill="none" stroke={i === 0 ? "rgba(124,58,237,0.3)" : "rgba(255,255,255,0.05)"} strokeWidth="1" strokeDasharray={i === 0 ? "0" : "4 4"} />
+                {showLabel && (
+                  <text x={center} y={center - r - 5} textAnchor="middle" fill={i === 0 ? "#7c3aed" : "#4b5563"} fontSize="9" fontFamily="monospace" fontWeight="bold">
+                    {getDateLabel(i)}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Time Spokes (12 PM Top) */}
+          {[
+            { deg: 0, label: "12 PM" },
+            { deg: 90, label: "6 PM" },
+            { deg: 180, label: "12 AM" },
+            { deg: 270, label: "6 AM" }
+          ].map((spoke, i) => {
+            const rMax = innerRadius + (maxDays * dayGap);
+            const angleRad = (spoke.deg - 90) * Math.PI / 180;
+            const textX = center + (rMax + 20) * Math.cos(angleRad);
+            const textY = center + (rMax + 20) * Math.sin(angleRad);
+
+            return (
+              <g key={`spoke-${i}`}>
+                <line x1={center} y1={center} x2={center + rMax * Math.cos(angleRad)} y2={center + rMax * Math.sin(angleRad)} stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                <text x={textX} y={textY + 5} textAnchor="middle" fill="#9ca3af" fontSize="10" fontFamily="monospace" fontWeight="bold">
+                  {spoke.label}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Task Arcs */}
+          {tasks.map((task) => {
+            const mins = timeToMinutes(task.scheduled_time);
+            if (mins === -1) return null;
+
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const target = new Date(task.target_date); target.setHours(0, 0, 0, 0);
+            const diffTime = target - today;
+            const dayIndex = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (dayIndex < 0 || dayIndex >= maxDays) return null;
+
+            // Solar Mapping (12 PM = 0 deg)
+            const solarMins = (mins + 720) % 1440;
+            const startAngle = (solarMins / 1440) * 360;
+            const durationDegrees = Math.max((task.estimated_time / 1440) * 360, 2);
+            const endAngle = startAngle + durationDegrees;
+
+            const radius = innerRadius + (dayIndex * dayGap);
+
+            let color = "#7c3aed";
+            if (task.is_urgent) color = "#ef4444";
+            if (task.priority === 'high') color = "#f59e0b";
+
+            const isHovered = hoveredTask && hoveredTask.id === task.id;
+
+            return (
+              <g key={task.id}
+                onClick={() => { playClick(); openTask(task); }}
+                onMouseEnter={() => { playClick(); setHoveredTask(task); }}
+                onMouseLeave={() => setHoveredTask(null)}
+                className="cursor-pointer"
+              >
+                {/* Visual Arc */}
+                <path
+                  d={describeArc(center, center, radius, startAngle, endAngle)}
+                  fill="none"
+                  stroke={isHovered ? "#ffffff" : color}
+                  strokeWidth={isHovered ? "6" : "3"}
+                  strokeLinecap="round"
+                  className="transition-all duration-200 drop-shadow-[0_0_8px_rgba(0,0,0,0.8)]"
+                />
+                {/* Hit Area (Invisible, Wider) */}
+                <path
+                  d={describeArc(center, center, radius, startAngle, endAngle)}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth="20" // Increased from 15 to 20 for easier hovering
+                />
+              </g>
+            );
+          })}
+
+          <circle cx={center} cy={center} r="5" fill="#fff" className="animate-pulse" />
+        </svg>
+      </div>
+    </div>
+  );
 };
 
 // --- COMPONENT: Timeline View ---
@@ -318,7 +538,7 @@ function App() {
   // --- GREETING (Only runs once when both true) ---
   useEffect(() => {
     if (appReady && isConfigured && isOnboarded) {
-      setTimeout(() => speak(`KRYTA Online. Welcome back, ${user.name}.`), 1000);
+      setTimeout(() => speak(`Kryta Online. Welcome back, ${user.name}.`), 1000);
     }
   }, [appReady, isConfigured, isOnboarded]);
 
@@ -406,54 +626,52 @@ function App() {
     <div className="h-screen w-screen bg-background text-gray-200 font-sans overflow-hidden relative selection:bg-primary/30">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
-      {/* --- STAGE 1: SETUP (Key) --- */}
-      {!isConfigured ? (
-        <SetupView onComplete={() => { setIsConfigured(true); showToast("Neural Link Established", "success"); playSuccess(); }} />
-      ) :
-        /* --- STAGE 2: ONBOARDING (Profile) --- */
-        !isOnboarded ? (
-          <OnboardingModal onComplete={() => { setIsOnboarded(true); showToast("Profile Created. Welcome.", "success"); playSuccess(); }} />
-        ) : (
-          /* --- STAGE 3: DASHBOARD (Main App) --- */
+      {!isConfigured ? (<SetupView onComplete={() => { setIsConfigured(true); showToast("Neural Link Established", "success"); playSuccess(); }} />) :
+        !isOnboarded ? (<OnboardingModal onComplete={() => { setIsOnboarded(true); showToast("Profile Created. Welcome.", "success"); playSuccess(); }} />) : (
           <>
             {/* Top HUD */}
-            <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-20">
-              <StatusCorner user={user} />
-            </div>
+            <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-start z-20"><StatusCorner user={user} /></div>
 
-            {/* Bottom HUD */}
+            {/* Bottom HUD (Dock) */}
             <div className="absolute bottom-0 left-0 w-full p-8 flex justify-between items-end z-20 pointer-events-none">
               <div className="w-20"></div>
               <div className="flex-1 max-w-2xl mx-4 pointer-events-auto">
-                <div className="bg-surface/80 backdrop-blur-md border border-border rounded-2xl p-1 flex items-center shadow-2xl ring-1 ring-white/5 transition-all">
-                  <div className="px-4 animate-pulse text-primary"><Terminal size={18} /></div>
-                  <input type="text" className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-600 h-12 font-medium" placeholder={loading ? "KRYTA is thinking..." : "Enter mission objective..."} value={goal} onChange={(e) => setGoal(e.target.value)} onKeyDown={handlePlan} disabled={loading} />
+                <div className={`bg-surface/80 backdrop-blur-md border rounded-2xl p-1 flex items-center shadow-2xl ring-1 transition-all ${isConfigured ? "border-border ring-white/5" : "border-red-500/30 ring-red-500/20"}`}>
+                  <div className={`px-4 animate-pulse ${isConfigured ? "text-primary" : "text-red-500"}`}>{isConfigured ? <Terminal size={18} /> : <AlertTriangle size={18} />}</div>
+                  <input type="text" className="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-600 h-12 font-medium" placeholder={loading ? "KRYTA is thinking..." : isConfigured ? "Enter mission objective..." : "SYSTEM OFFLINE"} value={goal} onChange={(e) => setGoal(e.target.value)} onKeyDown={handlePlan} disabled={loading} />
                   {loading && <Loader2 className="animate-spin text-gray-500 mr-4" size={18} />}
                 </div>
               </div>
               <div className="flex gap-2 pointer-events-auto bg-surface/50 backdrop-blur-md p-2 rounded-2xl border border-border">
                 <button onClick={() => { playClick(); setView('home'); }} className={`p-3 rounded-xl transition-all ${view === 'home' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><LayoutGrid size={20} /></button>
+                {/* NEW: CALENDAR BUTTON */}
+                <button onClick={() => { playClick(); setView('calendar'); }} className={`p-3 rounded-xl transition-all ${view === 'calendar' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><Calendar size={20} /></button>
                 <button onClick={() => { playClick(); setView('analytics'); }} className={`p-3 rounded-xl transition-all ${view === 'analytics' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><BarChart3 size={20} /></button>
-                <button onClick={() => { playClick(); setView('settings'); }} className={`p-3 rounded-xl transition-all relative ${view === 'settings' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><Settings size={20} /></button>
+                <button onClick={() => { playClick(); setView('settings'); }} className={`p-3 rounded-xl transition-all relative ${view === 'settings' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}>
+                  <Settings size={20} />{!isConfigured && (<span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_red]"></span>)}
+                </button>
               </div>
             </div>
 
             {/* Main Content */}
             <div className="absolute inset-0 pt-0 pb-0 overflow-hidden z-10">
-              {view === 'analytics' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><AnalyticsView /></div>) : view === 'settings' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><SettingsView showToast={showToast} setIsConfigured={setIsConfigured} playClick={playClick} /></div>) : (
-                <>
-                  {tasks.length === 0 && !loading ? (
-                    <div className="flex flex-col items-center justify-center h-full pb-20">
-                      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-                        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">KRYTA ONLINE.</h1>
-                        <p className="text-gray-500 text-lg max-w-md mx-auto">Awaiting mission parameters.</p>
-                      </motion.div>
-                    </div>
-                  ) : (
-                    <TimelineView tasks={tasks} openTask={openTask} playClick={playClick} />
-                  )}
-                </>
-              )}
+              {view === 'analytics' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><AnalyticsView /></div>)
+                : view === 'settings' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><SettingsView showToast={showToast} setIsConfigured={setIsConfigured} playClick={playClick} /></div>)
+                  : view === 'calendar' ? (<SpiralView openTask={(task) => { openTask(task); playClick(); }} />)
+                    : (
+                      <>
+                        {tasks.length === 0 && !loading ? (
+                          <div className="flex flex-col items-center justify-center h-full pb-20">
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+                              <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">KRYTA ONLINE.</h1>
+                              <p className="text-gray-500 text-lg max-w-md mx-auto">Awaiting mission parameters.</p>
+                            </motion.div>
+                          </div>
+                        ) : (
+                          <TimelineView tasks={tasks} openTask={openTask} playClick={playClick} />
+                        )}
+                      </>
+                    )}
             </div>
 
             {/* Modal */}

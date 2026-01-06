@@ -33,6 +33,11 @@ export const api = {
     return res.data;
   },
 
+  getCalendar: async () => {
+    const res = await axios.get(`${API_URL}/calendar`);
+    return res.data; // Returns list of tasks with target_date
+  },
+
   generateReport: async () => {
     const res = await axios.post(`${API_URL}/analytics/report`);
     return res.data;

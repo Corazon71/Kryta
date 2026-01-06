@@ -1,6 +1,6 @@
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 
 class User(SQLModel, table=True):
@@ -35,6 +35,9 @@ class Task(SQLModel, table=True):
     proof_instruction: Optional[str] = None # e.g. "Upload screenshot of terminal"
     minimum_viable_done: str
     last_failure_reason: Optional[str] = None # Stores why it was rejected
+
+    target_date: date = Field(default_factory=date.today) # YYYY-MM-DD
+    routine_id: Optional[str] = None # UUID to group recurring tasks (e.g. "Gym" everyday shares this ID)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
