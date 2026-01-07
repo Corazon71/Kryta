@@ -19,7 +19,7 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "electron": "wait-on tcp:5173 && electron ../electron/main.js",
+    "electron": "wait-on tcp:5173 && electron main.cjs",
     "start": "concurrently \"npm run dev\" \"npm run electron\""
   },
   "dependencies": {

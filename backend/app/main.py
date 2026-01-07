@@ -207,10 +207,10 @@ def verify_proof(request: ProofRequest, session: Session = Depends(get_session))
         user.failure_streak = 0
         user.lockout_until = None
         
-        # ... (Rewards logic) ...
+        # Apply rewards
         motivator = MotivatorAgent()
-        # ... (Apply rewards) ...
-        user.xp += 10 # Simplified for snippet
+        reward_data = motivator.distribute_rewards(task.title, task.estimated_time, 100, user.streak)
+        user.xp += reward_data.get("xp_gained", 10)
         user.streak += 1
         
     elif verdict == "partial":
