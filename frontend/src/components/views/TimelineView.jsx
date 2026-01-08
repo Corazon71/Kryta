@@ -54,40 +54,87 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
       <style>{globalStyles}</style>
 
       {/* Pop-up Card */}
-      <div className="mb-6 w-full max-w-xl px-6 h-40 flex items-end justify-center z-20">
+      <div className="mb-6 w-full max-w-xl px-6 h-40 flex items-end justify-center z-20 relative">
         <AnimatePresence mode="wait">
           {displayTask ? (
             <motion.div
               key={displayTask.id}
               initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }}
               onClick={() => { playClick(); openTask(displayTask); }}
-              className={`w-full backdrop-blur-xl border p-6 rounded-3xl cursor-pointer group relative overflow-hidden transition-colors ${displayTask.id === selectedTaskId ? 'bg-surface border-primary' : 'bg-surface/90 border-primary/50'
+              className={`w-full backdrop-blur-xl border p-6 rounded-3xl cursor-pointer group relative overflow-hidden transition-colors ${displayTask.id === selectedTaskId ? 'bg-surface/95 border-primary' : 'bg-surface/95 border-primary/50'
                 }`}
             >
               <div className="relative z-10 flex justify-between items-center">
                 <div>
-                  <div className="flex items-center gap-2 text-primary font-mono text-[10px] uppercase tracking-widest mb-1">
-                    {displayTask === timeActiveTask && (<span className="relative flex h-2 w-2"><span className="animate-ping absolute h-full w-full rounded-full bg-primary opacity-75" /><span className="relative rounded-full h-2 w-2 bg-primary" /></span>)}
+                  <div className="flex items-center gap-2 text-primary text-[10px] uppercase tracking-widest mb-1" style={{
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontWeight: 700
+                  }}>
+                    {displayTask === timeActiveTask && (
+                      <motion.span
+                        className="relative flex h-2 w-2"
+                        animate={{
+                          scale: [1, 1.5, 1],
+                          opacity: [0.8, 1, 0.8],
+                          boxShadow: [
+                            '0 0 5px rgba(59, 130, 246, 0.8)',
+                            '0 0 15px rgba(59, 130, 246, 1)',
+                            '0 0 5px rgba(59, 130, 246, 0.8)'
+                          ]
+                        }}
+                        transition={{
+                          duration: 2,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        <span className="absolute h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
+                        <span className="relative rounded-full h-2 w-2 bg-primary" />
+                      </motion.span>
+                    )}
                     {displayTask === timeActiveTask ? "Current Mission" : "Scheduled Mission"}
                   </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">{displayTask.title}</h2>
+                  <h2 className="text-2xl font-bold text-white tracking-tight" style={{
+                    textShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 30px rgba(59, 130, 246, 0.6)',
+                    fontFamily: '"Inter", sans-serif',
+                    fontWeight: 500
+                  }}>{displayTask.title}</h2>
                   {displayTask.proof_instruction && (
                     <div className="flex items-start gap-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 p-2 rounded-lg mt-2 w-fit">
                       <Target size={14} className="mt-0.5 shrink-0" />
-                      <span className="font-mono">{displayTask.proof_instruction}</span>
+                      <span className="font-mono" style={{
+                        fontFamily: '"Inter", sans-serif',
+                        fontWeight: 400
+                      }}>{displayTask.proof_instruction}</span>
                     </div>
                   )}
                 </div>
                 <div className="text-right">
-                  <div className="text-3xl font-mono text-white font-bold">{displayTask.scheduled_time}</div>
-                  <div className="text-[10px] text-gray-400 font-mono tracking-widest">{displayTask.estimated_time} MIN</div>
+                  <div className="text-3xl text-white font-bold" style={{
+                    textShadow: '0 0 15px rgba(255, 255, 255, 0.8), 0 0 25px rgba(59, 130, 246, 0.6)',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontWeight: 700
+                  }}>{displayTask.scheduled_time}</div>
+                  <div className="text-[10px] text-gray-200 tracking-widest" style={{
+                    textShadow: '0 0 10px rgba(255, 255, 255, 0.6)',
+                    fontFamily: '"JetBrains Mono", monospace',
+                    fontWeight: 400
+                  }}>{displayTask.estimated_time} MIN</div>
                 </div>
               </div>
             </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center pb-4">
-              <h2 className="text-2xl font-bold text-gray-800 tracking-tight">TIMELINE CLEAR</h2>
-              <p className="text-gray-800 font-mono text-[10px] uppercase tracking-widest mt-1">Standby Mode // Monitoring</p>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center pb-4 relative z-10">
+              <h2 className="text-2xl font-bold text-white tracking-tight" style={{
+                textShadow: '0 0 25px rgba(255, 255, 255, 0.9), 0 0 50px rgba(59, 130, 246, 0.7)',
+                fontFamily: '"Inter", sans-serif',
+                fontWeight: 500
+              }}>TIMELINE CLEAR</h2>
+              <p className="text-gray-200 text-[10px] uppercase tracking-widest mt-1" style={{
+                textShadow: '0 0 15px rgba(255, 255, 255, 0.7)',
+                fontFamily: '"JetBrains Mono", monospace',
+                fontWeight: 400
+              }}>Standby Mode // Monitoring</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -96,8 +143,11 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
       {/* Timeline Strip */}
       <div ref={scrollRef} className="w-full overflow-x-auto scrollbar-hide relative h-32 select-none timeline-mask">
         <div className="relative h-full min-w-[5760px] flex items-center">
-          <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/10 w-full" />
-          {[...Array(25)].map((_, i) => (<div key={i} className="absolute top-1/2" style={{ left: `${i * 60 * pxPerMin}px` }}><div className="w-1.5 h-1.5 bg-gray-600 rounded-full -mt-[3px] -ml-[3px]" /><div className="absolute top-4 -left-3 text-[10px] font-mono text-gray-600 font-bold">{i.toString().padStart(2, '0')}:00</div></div>))}
+          <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/20 w-full" />
+          {[...Array(25)].map((_, i) => (<div key={i} className="absolute top-1/2" style={{ left: `${i * 60 * pxPerMin}px` }}><div className="w-1.5 h-1.5 bg-gray-400 rounded-full -mt-[3px] -ml-[3px]" /><div className="absolute top-4 -left-3 text-[10px] text-gray-400 font-bold" style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontWeight: 700
+          }}>{i.toString().padStart(2, '0')}:00</div></div>))}
           {tasks.map(task => {
             const start = timeToMinutes(task.scheduled_time);
             if (start === -1 || task.status === 'completed') return null;

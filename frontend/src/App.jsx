@@ -18,6 +18,11 @@ import OnboardingModal from './components/overlays/OnboardingModal';
 import TaskModal from './components/overlays/TaskModal';
 import SystemLockdown from './components/overlays/SystemLockdown';
 
+// Layout Components
+import BackgroundEffect from './components/layout/BackgroundEffect';
+import Header from './components/layout/Header';
+import WelcomeMessage from './components/layout/WelcomeMessage';
+
 function App() {
   const [view, setView] = useState('home');
   const [user, setUser] = useState({ name: "Player", xp: 0, streak: 0 });
@@ -139,7 +144,11 @@ function App() {
 
   return (
     <div className="h-screen w-screen bg-background text-gray-200 font-sans overflow-hidden relative selection:bg-primary/30">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+      {/* Background Effects - Bottom Layer */}
+      <BackgroundEffect />
+
+      {/* Header - Top Layer */}
+      <Header isConfigured={isConfigured} />
 
       {!isConfigured ? (<SetupView onComplete={() => { setIsConfigured(true); showToast("Neural Link Established", "success"); playSuccess(); }} showToast={showToast} playSuccess={playSuccess} />) :
         !isOnboarded ? (<OnboardingModal onComplete={() => { setIsOnboarded(true); showToast("Profile Created. Welcome.", "success"); playSuccess(); }} showToast={showToast} playSuccess={playSuccess} />) : (
@@ -167,19 +176,14 @@ function App() {
             </div>
 
             {/* Main Content */}
-            <div className="absolute inset-0 pt-0 pb-0 overflow-hidden z-10">
+            <div className="absolute inset-0 pt-20 pb-0 overflow-hidden z-10">
               {view === 'analytics' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><AnalyticsView /></div>)
                 : view === 'settings' ? (<div className="pt-32 px-8 h-full overflow-y-auto"><SettingsView showToast={showToast} setIsConfigured={setIsConfigured} playClick={playClick} /></div>)
                   : view === 'calendar' ? (<SpiralView openTask={(task) => { openTask(task); }} playClick={playClick} />)
                     : (
                       <>
                         {todaysTasks.length === 0 && !loading ? (
-                          <div className="flex flex-col items-center justify-center h-full pb-20">
-                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-                              <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">{isConfigured ? "KRYTA ONLINE." : <span className="text-gray-500">SYSTEM OFFLINE.</span>}</h1>
-                              <p className="text-gray-500 text-lg max-w-md mx-auto">{isConfigured ? "Awaiting mission parameters." : "Configuration required."}</p>
-                            </motion.div>
-                          </div>
+                          <WelcomeMessage isConfigured={isConfigured} />
                         ) : (
                           <TimelineView tasks={todaysTasks} openTask={openTask} playClick={playClick} />
                         )}
