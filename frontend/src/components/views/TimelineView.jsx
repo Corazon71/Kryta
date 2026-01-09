@@ -152,11 +152,79 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
             const start = timeToMinutes(task.scheduled_time);
             if (start === -1 || task.status === 'completed') return null;
             const width = Math.max(task.estimated_time * pxPerMin, 20);
-            let colorClass = "bg-primary border-primary/50 shadow-[0_0_15px_#7c3aed]";
-            if (task.is_urgent) { colorClass = "bg-red-500 border-red-400 shadow-[0_0_15px_red]"; }
-            else if (task.priority === 'high') { colorClass = "bg-amber-500 border-amber-400 shadow-[0_0_15px_#f59e0b]"; }
+            const isShort = task.estimated_time < 30;
+            const isPast = start + task.estimated_time < nowMinutes;
+            const isActive = task === timeActiveTask;
+            const isHovered = task.id === hoveredTaskId || task.id === selectedTaskId;
+
+            let colorClass = "border-blue-500";
+            let glowColor = "shadow-[0_0_8px_#3b82f6]";
+            let nodeColor = "bg-blue-500";
+            let lineColor = "bg-blue-500";
+
+            if (task.is_urgent) {
+              colorClass = "border-red-500";
+              glowColor = "shadow-[0_0_8px_#ef4444]";
+              nodeColor = "bg-red-500";
+              lineColor = "bg-red-500";
+            }
+            else if (task.priority === 'high') {
+              colorClass = "border-amber-500";
+              glowColor = "shadow-[0_0_8px_#f59e0b]";
+              nodeColor = "bg-amber-500";
+              lineColor = "bg-amber-500";
+            }
+
+            if (isPast) {
+              nodeColor = "bg-gray-400";
+              lineColor = "bg-gray-400";
+            }
+
             return (
-              <motion.div key={task.id} onClick={(e) => { e.stopPropagation(); playClick(); setSelectedTaskId(task.id); }} onMouseEnter={() => setHoveredTaskId(task.id)} onMouseLeave={() => setHoveredTaskId(null)} whileHover={{ y: -4, scale: 1.05 }} className={`absolute top-[35%] h-4 rounded-full cursor-pointer z-10 shadow-lg backdrop-blur-sm transition-all border ${colorClass}`} style={{ left: `${start * pxPerMin}px`, width: `${width}px` }} />
+              <div key={task.id} className="absolute top-[35%] h-4 cursor-pointer z-10" style={{ left: `${start * pxPerMin}px`, width: `${width}px` }}>
+                <div
+                  onClick={(e) => { e.stopPropagation(); playClick(); setSelectedTaskId(task.id); }}
+                  onMouseEnter={() => setHoveredTaskId(task.id)}
+                  onMouseLeave={() => setHoveredTaskId(null)}
+                  className={`relative w-full h-full ${isPast ? 'opacity-30 grayscale' : ''}`}
+                >
+                  {/* Task Title */}
+                  <div
+                    className={`absolute -top-5 left-0 text-[9px] tracking-widest uppercase font-mono transition-all duration-200 ${isShort && !isHovered && !isActive ? 'opacity-0' : 'opacity-70'
+                      } ${isActive ? 'font-bold text-white shadow-[0_0_8px_#3b82f6]' : 'text-gray-300'}`}
+                    style={{ textShadow: isActive ? '0 0 8px rgba(59, 130, 246, 0.8)' : 'none' }}
+                  >
+                    {task.title}
+                  </div>
+
+                  {/* Circuit Trace Container */}
+                  <div className="relative w-full h-full flex items-center">
+                    {/* Start Node */}
+                    <div
+                      className={`absolute left-0 w-3 h-3 rotate-45 transition-all duration-200 ${isHovered || isActive ? 'ring-2 ring-offset-1 ring-offset-transparent' : ''
+                        } ${nodeColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'}`}
+                      style={{
+                        boxShadow: (isHovered || isActive) ? `0 0 12px ${nodeColor.includes('red') ? '#ef4444' : nodeColor.includes('amber') ? '#f59e0b' : '#3b82f6'}` : 'none'
+                      }}
+                    />
+
+                    {/* Duration Trace Line */}
+                    <div
+                      className={`absolute left-1.5 right-1 h-[2px] transition-all duration-200 ${lineColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'
+                        } ${glowColor}`}
+                      style={{
+                        boxShadow: (isHovered || isActive) ? `0 0 8px ${lineColor.includes('red') ? '#ef4444' : lineColor.includes('amber') ? '#f59e0b' : '#3b82f6'}` : 'none'
+                      }}
+                    />
+
+                    {/* End Terminal */}
+                    <div
+                      className={`absolute right-0 w-0.5 h-3 transition-all duration-200 ${lineColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'
+                        }`}
+                    />
+                  </div>
+                </div>
+              </div>
             );
           })}
           <div className="absolute top-0 bottom-0 z-30 pointer-events-none" style={{ left: `${nowMinutes * pxPerMin}px` }}>
