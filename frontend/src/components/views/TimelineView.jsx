@@ -188,15 +188,6 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
                   onMouseLeave={() => setHoveredTaskId(null)}
                   className={`relative w-full h-full ${isPast ? 'opacity-30 grayscale' : ''}`}
                 >
-                  {/* Task Title */}
-                  <div
-                    className={`absolute -top-5 left-0 text-[9px] tracking-widest uppercase font-mono transition-all duration-200 ${isShort && !isHovered && !isActive ? 'opacity-0' : 'opacity-70'
-                      } ${isActive ? 'font-bold text-white shadow-[0_0_8px_#3b82f6]' : 'text-gray-300'}`}
-                    style={{ textShadow: isActive ? '0 0 8px rgba(59, 130, 246, 0.8)' : 'none' }}
-                  >
-                    {task.title}
-                  </div>
-
                   {/* Circuit Trace Container */}
                   <div className="relative w-full h-full flex items-center">
                     {/* Start Node */}

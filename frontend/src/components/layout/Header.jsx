@@ -46,7 +46,6 @@ const Header = ({ isConfigured }) => {
           }}
           transition={{ duration: 2, repeat: Infinity }}
           whileHover={{
-            scale: 1.05,
             transition: { duration: 0.3 }
           }}
         >

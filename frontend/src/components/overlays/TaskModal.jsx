@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, CheckCircle, AlertTriangle } from 'lucide-react';
+import HourglassTimer from '../hud/HourglassTimer';
 
 const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
   const [modalMode, setModalMode] = useState('timer'); // 'timer' | 'verify'
@@ -10,7 +11,7 @@ const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
   const [proofImage, setProofImage] = useState(null);
 
   // Timer Effect
-  useState(() => {
+  useEffect(() => {
     let interval = null;
     if (isTimerRunning && timeLeft > 0) interval = setInterval(() => setTimeLeft((t) => t - 1), 1000);
     else if (timeLeft === 0) setIsTimerRunning(false);
@@ -26,7 +27,14 @@ const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
           {modalMode === 'timer' ? (
             <div className="text-center">
               <div className="mb-8"><h2 className="text-2xl font-bold text-white mb-2">{activeTask.title}</h2><p className="text-sm text-gray-500 font-mono uppercase tracking-widest">Protocol Active</p></div>
-              <div className="text-8xl font-mono font-bold text-white mb-10 tracking-tighter tabular-nums">{Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}</div>
+              {/* KRYTA Hourglass Timer */}
+              <div className="mb-10 flex justify-center">
+                <HourglassTimer
+                  timeLeft={timeLeft}
+                  totalTime={activeTask.estimated_time * 60}
+                  isActive={isTimerRunning}
+                />
+              </div>
               <div className="flex gap-4">
                 <button onClick={() => { playClick(); setIsTimerRunning(!isTimerRunning); }} className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isTimerRunning ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-primary text-black hover:bg-violet-400'}`}>{isTimerRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />} {isTimerRunning ? "PAUSE" : "ENGAGE"}</button>
                 <button onClick={() => { playClick(); setModalMode('verify'); }} className="px-6 border border-border rounded-xl hover:bg-white/5 text-green-500 hover:border-green-500/50 transition-all"><CheckCircle size={28} /></button>
