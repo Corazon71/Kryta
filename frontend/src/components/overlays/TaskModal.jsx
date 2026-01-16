@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, CheckCircle, AlertTriangle } from 'lucide-react';
-import HourglassTimer from '../hud/HourglassTimer';
+import HourglassLottie from '../hud/HourglassLottie';
 
 const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
   const [modalMode, setModalMode] = useState('timer'); // 'timer' | 'verify'
@@ -27,9 +27,9 @@ const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
           {modalMode === 'timer' ? (
             <div className="text-center">
               <div className="mb-8"><h2 className="text-2xl font-bold text-white mb-2">{activeTask.title}</h2><p className="text-sm text-gray-500 font-mono uppercase tracking-widest">Protocol Active</p></div>
-              {/* KRYTA Hourglass Timer */}
+              {/* Lottie Hourglass Timer */}
               <div className="mb-10 flex justify-center">
-                <HourglassTimer
+                <HourglassLottie
                   timeLeft={timeLeft}
                   totalTime={activeTask.estimated_time * 60}
                   isActive={isTimerRunning}
