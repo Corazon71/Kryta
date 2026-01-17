@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, CheckCircle, AlertTriangle } from 'lucide-react';
-import HourglassLottie from '../hud/HourglassLottie';
+import ModernHourglass from '../hud/HourglassTimer';
 
 const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
   const [modalMode, setModalMode] = useState('timer'); // 'timer' | 'verify'
@@ -27,13 +27,16 @@ const TaskModal = ({ activeTask, onClose, onVerify, playClick, loading }) => {
           {modalMode === 'timer' ? (
             <div className="text-center">
               <div className="mb-8"><h2 className="text-2xl font-bold text-white mb-2">{activeTask.title}</h2><p className="text-sm text-gray-500 font-mono uppercase tracking-widest">Protocol Active</p></div>
-              {/* Lottie Hourglass Timer */}
+              {/* Modern Hourglass Timer */}
               <div className="mb-10 flex justify-center">
-                <HourglassLottie
-                  timeLeft={timeLeft}
-                  totalTime={activeTask.estimated_time * 60}
-                  isActive={isTimerRunning}
-                />
+                <div className="bg-surface border border-border rounded-2xl p-4">
+                  <ModernHourglass
+                    duration={activeTask.estimated_time * 60}
+                    size={140}
+                    isActive={isTimerRunning}
+                    onComplete={() => setIsTimerRunning(false)}
+                  />
+                </div>
               </div>
               <div className="flex gap-4">
                 <button onClick={() => { playClick(); setIsTimerRunning(!isTimerRunning); }} className={`flex-1 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isTimerRunning ? 'bg-gray-800 text-white hover:bg-gray-700' : 'bg-primary text-black hover:bg-violet-400'}`}>{isTimerRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />} {isTimerRunning ? "PAUSE" : "ENGAGE"}</button>
