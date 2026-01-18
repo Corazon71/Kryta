@@ -202,8 +202,7 @@ const ModernHourglass = ({
       {/* --- TIMER DISPLAY --- */}
       <div className="mt-8 flex flex-col items-center gap-6 z-10">
         <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-violet-500 glow-text tracking-widest font-mono">
-          {Math.ceil(timeLeft)}
-          <span className="text-2xl ml-1 text-gray-500">s</span>
+          {Math.floor(timeLeft / 60).toString().padStart(2, '0')}:{Math.floor(timeLeft % 60).toString().padStart(2, '0')}
         </div>
       </div>
 
