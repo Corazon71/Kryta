@@ -38,6 +38,9 @@ class Task(SQLModel, table=True):
 
     target_date: date = Field(default_factory=date.today) # YYYY-MM-DD
     routine_id: Optional[str] = None # UUID to group recurring tasks (e.g. "Gym" everyday shares this ID)
+    group_id: Optional[str] = None
+    group_title: Optional[str] = None
+    step_order: int = Field(default=1)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

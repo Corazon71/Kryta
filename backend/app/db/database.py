@@ -19,6 +19,21 @@ def init_db():
     # This looks at all imported SQLModel classes and creates tables
     SQLModel.metadata.create_all(engine)
 
+    with engine.begin() as conn:
+        try:
+            cols = conn.exec_driver_sql("PRAGMA table_info('task')").fetchall()
+            existing = {row[1] for row in cols}
+
+            if "group_id" not in existing:
+                conn.exec_driver_sql("ALTER TABLE task ADD COLUMN group_id TEXT")
+            if "group_title" not in existing:
+                conn.exec_driver_sql("ALTER TABLE task ADD COLUMN group_title TEXT")
+            if "step_order" not in existing:
+                conn.exec_driver_sql("ALTER TABLE task ADD COLUMN step_order INTEGER")
+                conn.exec_driver_sql("UPDATE task SET step_order = 1 WHERE step_order IS NULL")
+        except Exception:
+            pass
+
 # 4. Dependency for FastAPI
 # This allows you to use: def endpoint(session: Session = Depends(get_session))
 def get_session() -> Generator[Session, None, None]:

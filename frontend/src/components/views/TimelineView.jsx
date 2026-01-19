@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Terminal, Target } from 'lucide-react';
+import { Terminal, Target, Check, Circle } from 'lucide-react';
+import MissionStepper from '../hud/MissionStepper';
 
 const globalStyles = `
   .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -48,6 +49,41 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
   const displayId = hoveredTaskId || selectedTaskId;
   const displayTask = displayId ? tasks.find(t => t.id === displayId) : timeActiveTask;
   const pxPerMin = 4;
+
+  const tasksByGroupId = tasks.reduce((acc, t) => {
+    if (t?.group_id) {
+      if (!acc[t.group_id]) acc[t.group_id] = [];
+      acc[t.group_id].push(t);
+    }
+    return acc;
+  }, {});
+
+  const timelineItems = [
+    ...Object.entries(tasksByGroupId).map(([groupId, groupTasks]) => {
+      if (!Array.isArray(groupTasks) || groupTasks.length === 0) return null;
+      if (!groupTasks.some(t => t?.status !== 'completed')) return null;
+
+      const timed = groupTasks
+        .map(t => ({ t, start: timeToMinutes(t?.scheduled_time) }))
+        .filter(x => x.start !== -1);
+
+      if (timed.length === 0) return null;
+
+      const start = Math.min(...timed.map(x => x.start));
+      const end = Math.max(...timed.map(x => x.start + (x.t?.estimated_time || 0)));
+
+      const repTask = [...groupTasks].sort((a, b) => {
+        const aOrder = Number.isFinite(Number(a?.step_order)) ? Number(a.step_order) : 1;
+        const bOrder = Number.isFinite(Number(b?.step_order)) ? Number(b.step_order) : 1;
+        return aOrder - bOrder;
+      })[0];
+
+      return { type: 'group', id: groupId, groupTasks, repTask, start, end };
+    }).filter(Boolean),
+    ...tasks
+      .filter(t => !t?.group_id)
+      .map(t => ({ type: 'task', id: t.id, task: t }))
+  ].sort((a, b) => (a.start ?? timeToMinutes(a?.task?.scheduled_time)) - (b.start ?? timeToMinutes(b?.task?.scheduled_time)));
 
   return (
     <div className="w-full flex flex-col items-center justify-end h-full pb-[30vh] relative">
@@ -108,6 +144,9 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
                       }}>{displayTask.proof_instruction}</span>
                     </div>
                   )}
+                  {displayTask.group_id && (
+                    <MissionStepper currentTask={displayTask} allTasks={tasks} />
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="text-3xl text-white font-bold" style={{
@@ -148,27 +187,35 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
             fontFamily: '"JetBrains Mono", monospace',
             fontWeight: 700
           }}>{i.toString().padStart(2, '0')}:00</div></div>))}
-          {tasks.map(task => {
-            const start = timeToMinutes(task.scheduled_time);
-            if (start === -1 || task.status === 'completed') return null;
-            const width = Math.max(task.estimated_time * pxPerMin, 20);
-            const isShort = task.estimated_time < 30;
-            const isPast = start + task.estimated_time < nowMinutes;
-            const isActive = task === timeActiveTask;
-            const isHovered = task.id === hoveredTaskId || task.id === selectedTaskId;
+          {timelineItems.map(item => {
+            const isGroup = item.type === 'group';
+            const baseTask = isGroup ? item.repTask : item.task;
+            if (!baseTask || baseTask.status === 'completed') return null;
+
+            const start = isGroup ? item.start : timeToMinutes(baseTask.scheduled_time);
+            if (start === -1) return null;
+
+            const end = isGroup ? item.end : (start + baseTask.estimated_time);
+            const width = Math.max((end - start) * pxPerMin, 20);
+            const isPast = end < nowMinutes;
+            const isActive = isGroup
+              ? (timeActiveTask && timeActiveTask.group_id === item.id)
+              : (baseTask === timeActiveTask);
+            const clickId = isGroup ? baseTask.id : baseTask.id;
+            const isHovered = clickId === hoveredTaskId || clickId === selectedTaskId;
 
             let colorClass = "border-blue-500";
             let glowColor = "shadow-[0_0_8px_#3b82f6]";
             let nodeColor = "bg-blue-500";
             let lineColor = "bg-blue-500";
 
-            if (task.is_urgent) {
+            if (baseTask.is_urgent) {
               colorClass = "border-red-500";
               glowColor = "shadow-[0_0_8px_#ef4444]";
               nodeColor = "bg-red-500";
               lineColor = "bg-red-500";
             }
-            else if (task.priority === 'high') {
+            else if (baseTask.priority === 'high') {
               colorClass = "border-amber-500";
               glowColor = "shadow-[0_0_8px_#f59e0b]";
               nodeColor = "bg-amber-500";
@@ -180,17 +227,23 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
               lineColor = "bg-gray-400";
             }
 
+            const steps = isGroup ? [...item.groupTasks].sort((a, b) => {
+              const aOrder = Number.isFinite(Number(a?.step_order)) ? Number(a.step_order) : 1;
+              const bOrder = Number.isFinite(Number(b?.step_order)) ? Number(b.step_order) : 1;
+              return aOrder - bOrder;
+            }) : [];
+            const currentStep = isGroup ? steps.find(t => t?.status !== 'completed') : null;
+            const span = Math.max(end - start, 1);
+
             return (
-              <div key={task.id} className="absolute top-[35%] h-4 cursor-pointer z-10" style={{ left: `${start * pxPerMin}px`, width: `${width}px` }}>
+              <div key={item.id} className="absolute top-[35%] h-4 cursor-pointer z-10" style={{ left: `${start * pxPerMin}px`, width: `${width}px` }}>
                 <div
-                  onClick={(e) => { e.stopPropagation(); playClick(); setSelectedTaskId(task.id); }}
-                  onMouseEnter={() => setHoveredTaskId(task.id)}
+                  onClick={(e) => { e.stopPropagation(); playClick(); setSelectedTaskId(clickId); }}
+                  onMouseEnter={() => setHoveredTaskId(clickId)}
                   onMouseLeave={() => setHoveredTaskId(null)}
                   className={`relative w-full h-full ${isPast ? 'opacity-30 grayscale' : ''}`}
                 >
-                  {/* Circuit Trace Container */}
                   <div className="relative w-full h-full flex items-center">
-                    {/* Start Node */}
                     <div
                       className={`absolute left-0 w-3 h-3 rotate-45 transition-all duration-200 ${isHovered || isActive ? 'ring-2 ring-offset-1 ring-offset-transparent' : ''
                         } ${nodeColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'}`}
@@ -199,7 +252,6 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
                       }}
                     />
 
-                    {/* Duration Trace Line */}
                     <div
                       className={`absolute left-1.5 right-1 h-[2px] transition-all duration-200 ${lineColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'
                         } ${glowColor}`}
@@ -208,11 +260,38 @@ const TimelineView = ({ tasks, openTask, playClick }) => {
                       }}
                     />
 
-                    {/* End Terminal */}
                     <div
                       className={`absolute right-0 w-0.5 h-3 transition-all duration-200 ${lineColor} ${isHovered || isActive ? 'opacity-100' : 'opacity-50'
                         }`}
                     />
+
+                    {isGroup && steps.length > 1 && (
+                      <div className="absolute left-1.5 right-1 top-[-10px] h-4 pointer-events-none">
+                        {steps.map((t, idx) => {
+                          const tStart = timeToMinutes(t?.scheduled_time);
+                          const leftPct = tStart === -1
+                            ? (steps.length === 1 ? 0 : (idx / (steps.length - 1)) * 100)
+                            : ((tStart - start) / span) * 100;
+
+                          const done = t?.status === 'completed';
+                          const isCurrentStep = currentStep && t?.id === currentStep.id;
+
+                          const icon = done
+                            ? <Check size={10} className="text-emerald-400" />
+                            : <Circle size={10} className={isCurrentStep ? "text-primary" : "text-white/30"} />;
+
+                          return (
+                            <div
+                              key={t.id}
+                              className={"absolute"}
+                              style={{ left: `calc(${Math.min(Math.max(leftPct, 0), 100)}% - 5px)` }}
+                            >
+                              {icon}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

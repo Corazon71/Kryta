@@ -127,6 +127,8 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
         is_recurring = len(result["tasks"]) > 1
         routine_id = str(uuid.uuid4()) if is_recurring else None
 
+        group_ids_by_title = {}
+
         for task_data in result["tasks"]:
             # Parse Date
             t_date_str = task_data.get("target_date", date.today().isoformat())
@@ -134,6 +136,19 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
                 t_date = datetime.strptime(t_date_str, "%Y-%m-%d").date()
             except:
                 t_date = date.today()
+
+            group_title = task_data.get("group_title")
+            group_id = task_data.get("group_id")
+            if group_title and not group_id:
+                if group_title not in group_ids_by_title:
+                    group_ids_by_title[group_title] = str(uuid.uuid4())
+                group_id = group_ids_by_title[group_title]
+
+            step_order_raw = task_data.get("step_order", 1)
+            try:
+                step_order = int(step_order_raw)
+            except:
+                step_order = 1
 
             task = Task(
                 user_id=user.id,
@@ -149,6 +164,9 @@ def generate_plan(request: PlanRequest, session: Session = Depends(get_session))
                 # --- NEW FIELDS ---
                 target_date=t_date,
                 routine_id=routine_id,
+                group_id=group_id,
+                group_title=group_title,
+                step_order=step_order,
                 # ------------------
                 
                 status="pending"
