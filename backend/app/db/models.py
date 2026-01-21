@@ -21,6 +21,7 @@ class User(SQLModel, table=True):
 class Task(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     user_id: str = Field(foreign_key="user.id")
+    milestone_id: Optional[str] = Field(default=None, foreign_key="milestone.id")
     title: str
     status: str = Field(default="pending")
     estimated_time: int 
@@ -43,6 +44,23 @@ class Task(SQLModel, table=True):
     step_order: int = Field(default=1)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Campaign(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    user_id: str = Field(foreign_key="user.id")
+    title: str
+    description: Optional[str] = None
+    status: str = Field(default="active")
+    total_weeks: int
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Milestone(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    campaign_id: str = Field(foreign_key="campaign.id")
+    title: str
+    description: Optional[str] = None
+    week_number: int
+    is_active: bool = Field(default=True)
 
 class AppSettings(SQLModel, table=True):
     key: str = Field(primary_key=True)
