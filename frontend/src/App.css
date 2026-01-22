@@ -28,15 +28,28 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
+  .logo {
     animation: logo-spin infinite 20s linear;
   }
 }
 
-.card {
-  padding: 2em;
+/* WarRoom Modal Typewriter Effect */
+.typewriter {
+  overflow: hidden;
+  white-space: nowrap;
+  animation: typing 0.5s steps(40, end);
 }
 
-.read-the-docs {
-  color: #888;
+@keyframes typing {
+  from { width: 0 }
+  to { width: 100% }
+}
+
+/* Matrix-style glow effects */
+.matrix-glow {
+  text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.gold-glow {
+  text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
 }

@@ -10,11 +10,12 @@ from langchain_core.messages import HumanMessage
 
 # Internal imports
 from .db.database import get_session, init_db
-from .db.models import Task, User, AppSettings
+from .db.models import Task, User, AppSettings, Campaign, Milestone
 from .agents.planner import PlannerAgent
 from .agents.verifier import VerifierAgent
 from .agents.motivator import MotivatorAgent
 from .agents.reflector import ReflectorAgent
+from .agents.strategist import StrategistAgent
 
 app = FastAPI()
 
@@ -46,6 +47,13 @@ class ProofRequest(BaseModel):
     proof_image: Optional[str] = None # Base64 string
 class KeyRequest(BaseModel):
     api_key: str
+
+class CampaignRequest(BaseModel):
+    goal: str
+    available_hours_per_day: int
+
+class CampaignConfirmRequest(BaseModel):
+    campaign_plan: dict
 
 # --- Lifecycle ---
 @app.on_event("startup")
@@ -499,3 +507,136 @@ def onboard_user(request: OnboardingRequest, session: Session = Depends(get_sess
     session.add(user)
     session.commit()
     return {"status": "success", "message": "Identity verified. Context loaded."}
+
+# --- CAMPAIGN ENDPOINTS ---
+
+@app.post("/campaign/strategize")
+def strategize_campaign(request: CampaignRequest, session: Session = Depends(get_session)):
+    # 1. Get User Context
+    user = session.exec(select(User)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_profile = {
+        "name": user.name,
+        "work_hours": user.work_hours,
+        "core_goals": user.core_goals,
+        "bad_habits": user.bad_habits,
+        "availability": f"{request.available_hours_per_day} hours per day"
+    }
+    
+    # 2. Call StrategistAgent
+    strategist = StrategistAgent()
+    campaign_plan = strategist.generate_campaign_plan(
+        user_goal=request.goal,
+        user_profile=user_profile
+    )
+    
+    # 3. Return the plan (without saving to DB)
+    if "error" in campaign_plan:
+        return {"status": "error", "message": campaign_plan["error"]}
+    
+    return {
+        "status": "success",
+        "campaign_plan": campaign_plan
+    }
+
+@app.post("/campaign/confirm")
+def confirm_campaign(request: CampaignConfirmRequest, session: Session = Depends(get_session)):
+    # 1. Get User
+    user = session.exec(select(User)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    campaign_plan = request.campaign_plan
+    
+    # 2. Save Campaign
+    campaign = Campaign(
+        user_id=user.id,
+        title=campaign_plan.get("campaign_title", "Untitled Campaign"),
+        description=f"Weekly schedule: {campaign_plan.get('recurrence_schedule', 'Flexible')}",
+        total_weeks=len(campaign_plan.get("milestones", [])),
+        status="active"
+    )
+    
+    session.add(campaign)
+    session.commit()
+    session.refresh(campaign)
+    
+    # 3. Save Milestones
+    milestones = []
+    for idx, milestone_data in enumerate(campaign_plan.get("milestones", [])):
+        milestone = Milestone(
+            campaign_id=campaign.id,
+            title=milestone_data.get("title", f"Milestone {idx + 1}"),
+            description=milestone_data.get("description", ""),
+            week_number=idx + 1,
+            is_active=(idx == 0)  # Only first milestone is active
+        )
+        session.add(milestone)
+        milestones.append(milestone)
+    
+    session.commit()
+    for m in milestones: session.refresh(m)
+    
+    # 4. Schedule tasks from FIRST ACTIVE milestone
+    first_milestone = milestones[0] if milestones else None
+    scheduled_tasks = []
+    
+    if first_milestone and first_milestone.is_active:
+        suggested_tasks = campaign_plan.get("milestones", [{}])[0].get("suggested_tasks", [])
+        
+        # Parse user work hours to respect restricted zones
+        work_hours = user.work_hours or "09:00-17:00"
+        try:
+            start_time, end_time = work_hours.split("-")
+            work_start_hour = int(start_time.split(":")[0])
+            work_end_hour = int(end_time.split(":")[0])
+        except:
+            work_start_hour, work_end_hour = 9, 17  # Default 9-5
+        
+        # Schedule tasks for upcoming days
+        current_date = date.today()
+        available_hours_per_day = 8  # Default, could be derived from user profile
+        
+        for task_idx, task_title in enumerate(suggested_tasks):
+            # Calculate target date (spread across days)
+            days_offset = (task_idx * 2) // available_hours_per_day  # Every 2 hours = new day
+            target_date = current_date + timedelta(days=days_offset)
+            
+            # Calculate scheduled time within work hours
+            hour_offset = (task_idx * 2) % available_hours_per_day
+            scheduled_hour = work_start_hour + hour_offset
+            
+            if scheduled_hour >= work_end_hour:
+                scheduled_hour = work_start_hour
+                target_date += timedelta(days=1)
+            
+            scheduled_time = f"{scheduled_hour:02d}:00"
+            
+            task = Task(
+                user_id=user.id,
+                milestone_id=first_milestone.id,
+                title=task_title,
+                estimated_time=120,  # 2 hours default
+                scheduled_time=scheduled_time,
+                target_date=target_date,
+                priority="high",
+                success_criteria="Complete milestone task",
+                minimum_viable_done="Make meaningful progress",
+                proof_instruction="Upload progress proof",
+                status="pending"
+            )
+            session.add(task)
+            scheduled_tasks.append(task)
+    
+    session.commit()
+    for t in scheduled_tasks: session.refresh(t)
+    
+    return {
+        "status": "success",
+        "campaign": campaign.model_dump(),
+        "milestones": [m.model_dump() for m in milestones],
+        "scheduled_tasks": [t.model_dump() for t in scheduled_tasks],
+        "message": f"Campaign '{campaign.title}' created with {len(scheduled_tasks)} tasks scheduled"
+    }

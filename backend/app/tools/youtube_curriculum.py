@@ -104,6 +104,15 @@ class YouTubePlaylistCurriculumInput(BaseModel):
 
 @tool("youtube_playlist_curriculum_search", args_schema=YouTubePlaylistCurriculumInput)
 def youtube_playlist_curriculum_search(topic: str, max_items: int = 30) -> str:
+    """Search YouTube for playlists related to a topic and extract curriculum data.
+    
+    Args:
+        topic: The topic to search for educational playlists
+        max_items: Maximum number of items to extract from the playlist (1-100)
+        
+    Returns:
+        JSON string containing course title, URL, total items, and syllabus list
+    """
     builder = CurriculumBuilder()
     data = builder.generate_roadmap_data(topic, max_items=max_items)
     return json.dumps(data)

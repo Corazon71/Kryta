@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from './api';
 import { motion } from 'framer-motion';
-import { Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle, Calendar, Loader2 } from 'lucide-react';
+import { Terminal, LayoutGrid, BarChart3, Settings, AlertTriangle, Calendar, Loader2, Target } from 'lucide-react';
 import { useKRYTAAudio } from './hooks/useKRYTAAudio';
 
 // Views
@@ -17,6 +17,7 @@ import SetupView from './components/overlays/SetupView';
 import OnboardingModal from './components/overlays/OnboardingModal';
 import TaskModal from './components/overlays/TaskModal';
 import SystemLockdown from './components/overlays/SystemLockdown';
+import WarRoomModal from './components/overlays/WarRoomModal';
 
 // Layout Components
 import BackgroundEffect from './components/layout/BackgroundEffect';
@@ -40,6 +41,14 @@ function App() {
   // Lockdown
   const [isLocked, setIsLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState("");
+
+  // WarRoom Modal
+  const [isWarRoomOpen, setIsWarRoomOpen] = useState(false);
+  const [warRoomGoal, setWarRoomGoal] = useState("");
+  const [warRoomHours, setWarRoomHours] = useState(4);
+
+  // Modal Mode
+  const [modalMode, setModalMode] = useState(null);
 
   const { playClick, playSuccess, playError, speak } = useKRYTAAudio();
 
@@ -94,6 +103,20 @@ function App() {
   const handlePlan = async (e) => {
     if (e.key !== 'Enter' || !goal) return;
     if (!isConfigured) { showToast("ACCESS DENIED: Neural Link Required", "error"); playError(); return; }
+
+    // Check for War Room commands
+    if (goal.startsWith('/project') || goal.startsWith('/learn')) {
+      const campaignGoal = goal.replace(/^\/(project|learn)\s*/, '').trim();
+      if (campaignGoal) {
+        setModalMode('campaign');
+        setWarRoomGoal(campaignGoal);
+        setIsWarRoomOpen(true);
+        setGoal("");
+        playClick();
+        return;
+      }
+    }
+
     playClick(); setLoading(true);
     try {
       const res = await api.planDay(goal, 60);
@@ -131,6 +154,23 @@ function App() {
     playClick();
   };
 
+  const openWarRoom = (goal, hours = 4) => {
+    setWarRoomGoal(goal);
+    setWarRoomHours(hours);
+    setIsWarRoomOpen(true);
+    playClick();
+  };
+
+  const handleCampaignCreated = (response) => {
+    // Add new tasks to the existing tasks
+    if (response.scheduled_tasks) {
+      setTasks(prev => [...prev, ...response.scheduled_tasks]);
+    }
+    showToast(`Campaign "${response.campaign.title}" initiated with ${response.scheduled_tasks?.length || 0} missions`, "success");
+    playSuccess();
+    speak("Campaign initiated. Mission parameters deployed.");
+  };
+
   // --- BUG FIX: FILTER TASKS FOR TIMELINE ---
   // Only pass TODAY'S tasks to the timeline view
   const todaysTasks = tasks.filter(t => {
@@ -166,6 +206,9 @@ function App() {
                 </div>
               </div>
               <div className="flex gap-2 pointer-events-auto bg-surface/50 backdrop-blur-md p-2 rounded-2xl border border-border">
+                <button onClick={() => { setModalMode('campaign'); setWarRoomGoal(''); setIsWarRoomOpen(true); playClick(); }} className="p-3 rounded-xl transition-all hover:bg-white/5 text-gray-400" title="New Campaign">
+                  <Target size={20} />
+                </button>
                 <button onClick={() => { playClick(); setView('home'); }} className={`p-3 rounded-xl transition-all ${view === 'home' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><LayoutGrid size={20} /></button>
                 <button onClick={() => { playClick(); setView('calendar'); }} className={`p-3 rounded-xl transition-all ${view === 'calendar' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><Calendar size={20} /></button>
                 <button onClick={() => { playClick(); setView('analytics'); }} className={`p-3 rounded-xl transition-all ${view === 'analytics' ? 'bg-primary text-white shadow-lg' : 'hover:bg-white/5 text-gray-400'}`}><BarChart3 size={20} /></button>
@@ -183,7 +226,7 @@ function App() {
                     : (
                       <>
                         {todaysTasks.length === 0 && !loading ? (
-                          <WelcomeMessage isConfigured={isConfigured} />
+                          <WelcomeMessage isConfigured={isConfigured} onOpenWarRoom={openWarRoom} />
                         ) : (
                           <TimelineView tasks={todaysTasks} openTask={openTask} playClick={playClick} />
                         )}
@@ -193,6 +236,15 @@ function App() {
 
             {/* Modals */}
             {activeTask && <TaskModal activeTask={activeTask} onClose={() => setActiveTask(null)} onVerify={handleVerify} playClick={playClick} loading={loading} />}
+            {modalMode === 'campaign' && (
+              <WarRoomModal
+                isOpen={isWarRoomOpen}
+                onClose={() => { setIsWarRoomOpen(false); setModalMode(null); }}
+                goal={warRoomGoal}
+                availableHours={warRoomHours}
+                onCampaignCreated={handleCampaignCreated}
+              />
+            )}
           </>
         )}
 

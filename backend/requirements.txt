@@ -4,8 +4,11 @@ pydantic
 sqlmodel
 sqlalchemy
 langchain
+langchain-community
 langchain-groq
 langchain-core
 python-dotenv
 requests
+duckduckgo-search
 yt-dlp
+ddgs

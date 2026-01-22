@@ -42,7 +42,7 @@ export const api = {
     const res = await axios.post(`${API_URL}/analytics/report`);
     return res.data;
   },
-  
+
   saveKey: async (apiKey) => {
     const res = await axios.post(`${API_URL}/settings/key`, { api_key: apiKey });
     return res.data;
@@ -50,6 +50,21 @@ export const api = {
 
   getKeyStatus: async () => {
     const res = await axios.get(`${API_URL}/settings/key`);
+    return res.data;
+  },
+
+  strategizeCampaign: async (goal, availableHours) => {
+    const res = await axios.post(`${API_URL}/campaign/strategize`, {
+      goal,
+      available_hours_per_day: availableHours
+    });
+    return res.data;
+  },
+
+  confirmCampaign: async (campaignPlan) => {
+    const res = await axios.post(`${API_URL}/campaign/confirm`, {
+      campaign_plan: campaignPlan
+    });
     return res.data;
   }
 

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
+import { Target } from 'lucide-react';
 
-const WelcomeMessage = ({ isConfigured }) => {
+const WelcomeMessage = ({ isConfigured, onOpenWarRoom }) => {
   const message = isConfigured ? "KRYTA ONLINE." : "SYSTEM OFFLINE.";
   const glitchChars = '!@#$%^&*()_+-=[]{}|;:,.<>?~`';
 
@@ -128,6 +129,29 @@ const WelcomeMessage = ({ isConfigured }) => {
           }}
         />
       </motion.div>
+
+      {/* Strategic Planning Button */}
+      {isConfigured && (
+        <motion.div
+          className="mt-12"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.5, duration: 0.5 }}
+        >
+          <motion.button
+            onClick={() => onOpenWarRoom("Learn Advanced Web Development", 6)}
+            className="group relative px-8 py-4 bg-gradient-to-r from-green-500/20 to-blue-500/20 border border-green-500/50 rounded-2xl text-green-400 font-semibold hover:border-green-400 hover:from-green-500/30 hover:to-blue-500/30 transition-all duration-300 backdrop-blur-sm"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <div className="flex items-center gap-3">
+              <Target size={20} className="group-hover:rotate-12 transition-transform" />
+              <span>Strategic Planning Mode</span>
+            </div>
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-green-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          </motion.button>
+        </motion.div>
+      )}
 
       <style jsx>{`
         @keyframes glow {
